@@ -1,4 +1,3 @@
-import functools
 from typing import Tuple, Any, Union
 
 import numpy as np
@@ -155,12 +154,11 @@ class Gridworld:
     def one_hot_env(self):
         return OneHotEnv.from_tabular(self._tabular)
 
-    @functools.singledispatch
-    def state_repr(self, state: Union[int, np.ndarray]) -> str:
+    def state_repr(self, state: Union[int, np.ndarray]) -> Tuple[int, int]:
         if type(state) is int:
-            return str(self._pos(state))
+            return self._pos(state)
         else:
-            return str(self._pos(np.asscalar(np.argmax(state))))
+            return self._pos(np.asscalar(np.argmax(state)))
 
 
 simple_grid1 = Gridworld(
