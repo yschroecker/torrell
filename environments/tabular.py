@@ -10,7 +10,7 @@ class Tabular:
         self.num_actions = transition_matrix.shape[0]//self.num_states
         self._transition_matrix = transition_matrix
         self._reward_matrix = reward_matrix
-        self._terminal_states = terminal_states
+        self._terminal_states = terminal_states.astype(bool)
         self._initial_states = initial_states
 
     def sample_initial(self) -> int:
@@ -25,14 +25,67 @@ class Tabular:
     def is_terminal(self, state: int) -> bool:
         return self._terminal_states[state]
 
-    def _policy_transition_matrix(self, policy: np.ndarray) -> np.ndarray:
-        policy_selector = np.zeros((self.num_states, self.num_states * self.num_actions))
+    def _wrap_around_transition_matrix(self) -> np.ndarray:
+        wrap_around_matrix = self._transition_matrix.copy()
+        for sa in range(self.num_states * self.num_actions):
+            terminal_mass = np.sum(wrap_around_matrix[sa, self._terminal_states])
+            wrap_around_matrix[sa, self._terminal_states] = 0
+            wrap_around_matrix[sa, :] += self._initial_states * terminal_mass
+        return wrap_around_matrix
+
+    def deterministic_policy_transition_matrix(self, deterministic_policy: np.ndarray,
+                                               transition_matrix: np.ndarray) -> np.ndarray:
+        policy = np.zeros((self.num_states, self.num_states * self.num_actions))
         for state in range(self.num_states):
-            policy_selector[state, self._sa_index(state, policy[state])] = 1
-        return np.dot(policy_selector, self._transition_matrix)
+            policy[state, self._sa_index(state, deterministic_policy[state])] = 1
+        return self.policy_transition_matrix(policy, transition_matrix)
+
+    @staticmethod
+    def policy_transition_matrix(policy: np.ndarray, transition_matrix: np.ndarray) -> np.ndarray:
+        return np.dot(policy, transition_matrix)
+
+    def stationary_state_distribution(self, policy: np.ndarray) -> np.ndarray:
+        transition_matrix = self.policy_transition_matrix(policy, self._wrap_around_transition_matrix())
+        _, vectors = np.linalg.eig(transition_matrix.T)
+        for vector in vectors.T:
+            # noinspection PyTypeChecker
+            if np.all(vector >= 0) or np.all(vector <= 0):
+                return np.real(vector/np.sum(vector))
+        assert False
+
+    def reverse_transition_matrix(self, policy: np.ndarray, stationary_distribution: np.ndarray) -> np.ndarray:
+        transition_matrix = self._wrap_around_transition_matrix()
+        reverse_transitions = np.zeros((self.num_states, self.num_states * self.num_actions))
+        for state in range(self.num_states):
+            for action in range(self.num_actions):
+                for next_state in range(self.num_states):
+                    sa = self._sa_index(state, action)
+                    reverse_transitions[next_state, sa] = transition_matrix[sa, next_state] * policy[state, sa] * \
+                        stationary_distribution[state]/stationary_distribution[next_state]
+        return reverse_transitions
+
+    def log_stationary_derivative(self, policy: np.ndarray, log_policy_derivative: np.ndarray,
+                                  stationary_distribution: np.ndarray) -> np.ndarray:
+        """
+        :param policy: S x SA
+        :param log_policy_derivative: SA X parameter_dims
+        :param stationary_distribution: S
+        :return: S X parameter_dims
+        """
+        parameter_dims = log_policy_derivative.shape[1:]
+        reverse_transitions = self.reverse_transition_matrix(policy, stationary_distribution)
+        reverse_state_transitions = sum(
+            [reverse_transitions[:, np.arange(0, self.num_actions*self.num_states, self.num_actions) + i]
+             for i in range(self.num_actions)]
+        )
+        lsd = np.linalg.solve(np.eye(self.num_states) - reverse_state_transitions,
+                              reverse_transitions @ np.reshape(log_policy_derivative,
+                                                               newshape=[log_policy_derivative.shape[0], -1]))
+        lsd -= np.sum(lsd * stationary_distribution[:, np.newaxis], axis=0, keepdims=True)
+        return np.reshape(lsd, newshape=(lsd.shape[0],) + parameter_dims)
 
     def _sa_index(self, state: int, action: int) -> int:
-        return self.num_actions * state + action
+        return self.num_actions * state + action  # don't change
 
 
 def state_reward_to_matrix(reward_vector: np.ndarray, num_actions: int) -> np.ndarray:
@@ -146,13 +199,13 @@ class Gridworld:
         reward_matrix = state_reward_to_matrix(reward_vector, self.num_actions)
         initial_vector /= np.sum(initial_vector)
 
-        self._tabular = Tabular(transition_matrix, reward_matrix, terminal_vector, initial_vector)
+        self.tabular = Tabular(transition_matrix, reward_matrix, terminal_vector, initial_vector)
 
     def tabular_env(self):
-        return TabularEnv(self._tabular)
+        return TabularEnv(self.tabular)
 
     def one_hot_env(self):
-        return OneHotEnv.from_tabular(self._tabular)
+        return OneHotEnv.from_tabular(self.tabular)
 
     def state_repr(self, state: Union[int, np.ndarray]) -> Tuple[int, int]:
         if type(state) is int:
@@ -178,8 +231,35 @@ simple_grid1 = Gridworld(
     ).T
 )
 
+simple_grid2 = Gridworld(
+    np.array(
+        [[0, 0, 0, 0, 0, 0, 0, 0, 0, G],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [S, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    ).T,
+    np.array(
+        [[0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    ).T
+)
 
-if __name__ == '__main__':
+
+def _run():
     env = simple_grid1.tabular_env()
     state = env.reset()
     print(type(state))
@@ -187,3 +267,5 @@ if __name__ == '__main__':
     state, reward, is_terminal, _ = env.step(Gridworld.RIGHT)
     print(simple_grid1.state_repr(state))
 
+if __name__ == '__main__':
+    _run()
