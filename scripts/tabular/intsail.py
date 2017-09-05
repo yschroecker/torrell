@@ -30,49 +30,54 @@ def policy(_: int) -> ActionDistribution:
     return 1/3, 2/3
 
 
-def simulate(num_steps: int) -> Tuple[Sequence[int], Sequence[float]]:
+def simulate(num_steps: int) -> Tuple[Sequence[int], Sequence[float], Sequence[float]]:
     env = chain()
 
     states = []
     action_probabilities = []
 
+    step_weights = []
     state = env.reset()
     for t in range(num_steps):
         action_distribution = policy(state)
+        # sample_distribution = [1/3, 2/3]
         action = np.random.choice(num_actions, p=action_distribution)
+        # step_weights.append(1)
+        # action = np.random.choice(num_actions, p=sample_distribution)
+        step_weights.append(0.5/action_distribution[action])
 
         states.append(state)
         action_probabilities.append(action_distribution[action])
 
         state, reward, is_terminal, _ = env.step(action)
-        if is_terminal:
-            state = env.reset()
 
-    return states, action_probabilities
+    return states, action_probabilities, step_weights
 
 
 def empirical_state_distribution(states: Sequence[int]) -> Sequence[float]:
     return np.bincount(states)/len(states)
 
 
-def int_sail_estimate(states: Sequence[int], action_probabilities: Sequence[float], learning_rate: float=0.1) \
+def int_sail_estimate(states: Sequence[int], action_probabilities: Sequence[float], weights: Sequence[float],
+                      learning_rate: float=0.1) \
         -> Sequence[float]:
     value = np.ones((num_states,))
     # mu = 0
-    mu = np.log(action_probabilities).mean()
-    for state, action_probability, next_state in zip(states[:-1], action_probabilities, states[1:]):
+    mu = (np.log(action_probabilities)).mean()
+    # e = 0
+    for state, action_probability, next_state, weight in zip(states[:-1], action_probabilities, states[1:], weights):
         log_pi = np.log(action_probability)
         # mu = (1 - learning_rate) * mu + learning_rate*log_pi
-        value[next_state] += learning_rate * (log_pi - mu * value[state] - value[next_state])
+        value[next_state] += learning_rate * (log_pi - mu + value[state] - value[next_state]) / action_probability
     state_weights = np.exp(value)
     return state_weights/np.sum(state_weights)
 
 
 def run():
-    sample_states, sample_action_probabilities = simulate(100000)
+    sample_states, sample_action_probabilities, weights = simulate(100000)
     empirical_dist = empirical_state_distribution(sample_states)
     print(empirical_dist)
-    sail_dist = int_sail_estimate(sample_states, sample_action_probabilities, 0.1)
+    sail_dist = int_sail_estimate(sample_states, sample_action_probabilities, weights, 0.001)
     print(sail_dist)
 
 if __name__ == '__main__':

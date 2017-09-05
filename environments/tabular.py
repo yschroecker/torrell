@@ -27,10 +27,11 @@ class Tabular:
 
     def _wrap_around_transition_matrix(self) -> np.ndarray:
         wrap_around_matrix = self._transition_matrix.copy()
-        for sa in range(self.num_states * self.num_actions):
-            terminal_mass = np.sum(wrap_around_matrix[sa, self._terminal_states])
-            wrap_around_matrix[sa, self._terminal_states] = 0
-            wrap_around_matrix[sa, :] += self._initial_states * terminal_mass
+        for state in range(self.num_states):
+            if self.is_terminal(state):
+                for action in range(self.num_actions):
+                    sa = self._sa_index(state, action)
+                    wrap_around_matrix[sa, :] = self._initial_states
         return wrap_around_matrix
 
     def deterministic_policy_transition_matrix(self, deterministic_policy: np.ndarray,
@@ -78,9 +79,10 @@ class Tabular:
             [reverse_transitions[:, np.arange(0, self.num_actions*self.num_states, self.num_actions) + i]
              for i in range(self.num_actions)]
         )
-        lsd = np.linalg.solve(np.eye(self.num_states) - reverse_state_transitions,
+        # should be solve but is sometimes singular. Probably for numerical reasons?
+        lsd = np.linalg.lstsq(np.eye(self.num_states) - reverse_state_transitions,
                               reverse_transitions @ np.reshape(log_policy_derivative,
-                                                               newshape=[log_policy_derivative.shape[0], -1]))
+                                                               newshape=[log_policy_derivative.shape[0], -1]))[0]
         lsd -= np.sum(lsd * stationary_distribution[:, np.newaxis], axis=0, keepdims=True)
         return np.reshape(lsd, newshape=(lsd.shape[0],) + parameter_dims)
 
@@ -184,7 +186,7 @@ class Gridworld:
             transition_matrix[state * self.num_actions + self.UP, left] += transition_noise/2
             transition_matrix[state * self.num_actions + self.UP, right] += transition_noise/2
 
-            transition_matrix[state * self.num_actions + self.DOWN, up] += 1 - transition_noise
+            transition_matrix[state * self.num_actions + self.DOWN, down] += 1 - transition_noise
             transition_matrix[state * self.num_actions + self.DOWN, left] += transition_noise/2
             transition_matrix[state * self.num_actions + self.DOWN, right] += transition_noise/2
 

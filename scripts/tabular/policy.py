@@ -1,3 +1,4 @@
+from abc import ABCMeta
 from typing import Sequence, Optional
 
 import numpy as np
@@ -5,7 +6,12 @@ import numpy as np
 BIAS = -1
 
 
-class BiasedTabularPolicy:
+class PolicyBase(metaclass=ABCMeta):
+    def probabilities(self, state: Sequence[int]) -> np.ndarray:
+        pass
+
+
+class BiasedTabularPolicy(PolicyBase):
     def __init__(self, num_states: int, num_actions: int):
         self._num_states = num_states
         self._num_actions = num_actions
