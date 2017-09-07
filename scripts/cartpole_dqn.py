@@ -36,6 +36,9 @@ def _run():
         batch_size=32,
         reward_log_smoothing=0.1,
         initial_population=320,
+        initial_epsilon=0,
+        epsilon_decay=0,
+        final_epsilon=0,
         maxlen=200
     )
 
