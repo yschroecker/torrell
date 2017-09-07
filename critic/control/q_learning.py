@@ -23,6 +23,9 @@ class DiscreteQLearning(critic.temporal_difference.TemporalDifference):
         # noinspection PyArgumentList
         next_values = torch.max(next_q_values, dim=1)[0]
         target_values = intermediate_returns + bootstrap_weights*next_values
+        torch_util.global_summary_writer.add_scalar(
+            f'TD/target_values ({self.name})', target_values.mean().data[0], self._update_counter
+        )
         target_values.volatile = False
         loss = self._loss_fn(values, target_values)
 

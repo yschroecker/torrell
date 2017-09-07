@@ -24,6 +24,7 @@ class DiscreteTrainer:
         self._episode_reward = 0
         self._next_state = env.reset()
         self._next_action = self._choose_action(self._next_state)
+        self._episode = 0
 
     def _choose_action(self, state: np.ndarray) -> int:
         action_probabilities = self._actor.probabilities(
@@ -53,11 +54,13 @@ class DiscreteTrainer:
             next_actions.append(self._next_action)
 
             if is_terminal or self._t == self._maxlen:
+                torch_util.global_summary_writer.add_scalar('episode reward', self._episode_reward, self._episode)
                 self._reward_ema = (1 - self._reward_log_smoothing) * self._reward_ema + \
                                    self._reward_log_smoothing * self._episode_reward
                 self._next_state = self._env.reset()
                 self._t = 0
                 self._episode_reward = 0
+                self._episode += 1
             self._next_action = self._choose_action(self._next_state)
         return states, actions, rewards, terminal_states, next_states, next_actions
 

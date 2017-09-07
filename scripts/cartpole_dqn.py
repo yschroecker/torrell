@@ -7,7 +7,7 @@ import torch_util
 
 
 class QNetwork(torch.nn.Module):
-    def __init__(self, num_states, num_actions):
+    def __init__(self, num_states: int, num_actions: int):
         super().__init__()
         h1dim = 80
         self._h1 = torch.nn.Linear(num_states, h1dim)
