@@ -14,8 +14,11 @@ def _run():
     optimizer = torch.optim.SGD(q_network.parameters(), lr=0.5)
     q_learner = critic.control.q_learning.DiscreteQLearning(q_network, optimizer, 1)
     epsilon_greedy = actor.value.EpsilonGreedy(grid.num_actions, q_network, 0, 0, 0)
-    trainer = trainers.online_trainer.DiscreteOnlineTrainer(env, grid.num_actions, epsilon_greedy, q_learner, 0.99)
-    trainer.train(1000)
+    # trainer = trainers.online_trainer.DiscreteOnlineTrainer(env, grid.num_actions, epsilon_greedy, q_learner, 0.99, 1)
+    # trainer.train(1000)
+    trainer = trainers.online_trainer.DiscreteNstepTrainer(env, grid.num_actions, epsilon_greedy, q_learner, 0.99, 1,
+                                                           batch_size=10)
+    trainer.train(100)
 
 
 if __name__ == '__main__':

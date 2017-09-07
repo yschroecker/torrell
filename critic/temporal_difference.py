@@ -2,6 +2,7 @@ from typing import NamedTuple
 import abc
 import copy
 
+import numpy as np
 import torch
 
 import torch_util
@@ -14,6 +15,20 @@ class Batch(NamedTuple):
     bootstrap_states: torch_util.Tensor
     bootstrap_actions: torch_util.LongTensor
     bootstrap_weights: torch_util.Tensor
+
+    @classmethod
+    def from_numpy(cls, states: np.ndarray, actions: np.ndarray, intermediate_returns: np.ndarray,
+                   bootstrap_states: np.ndarray, bootstrap_actions: np.ndarray, bootstrap_weights: np.ndarray) -> \
+            NamedTuple:
+        return Batch(
+            states=torch.from_numpy(np.array(states, dtype=np.float32)).type(torch_util.Tensor),
+            actions=torch.from_numpy(np.array(actions, dtype=np.int32)).type(torch_util.LongTensor),
+            intermediate_returns=torch.from_numpy(np.array(intermediate_returns, dtype=np.float32)).type(
+                torch_util.Tensor),
+            bootstrap_weights=torch.from_numpy(bootstrap_weights).type(torch_util.Tensor),
+            bootstrap_states=torch.from_numpy(np.array(bootstrap_states, dtype=np.float32)).type(torch_util.Tensor),
+            bootstrap_actions=torch.from_numpy(np.array(bootstrap_actions, dtype=np.int32)).type(torch_util.LongTensor)
+        )
 
 
 class TemporalDifference(metaclass=abc.ABCMeta):

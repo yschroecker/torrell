@@ -1,6 +1,7 @@
 import torch
 
 import critic.temporal_difference
+import torch_util
 
 
 class DiscreteQLearning(critic.temporal_difference.TemporalDifference):
@@ -16,7 +17,7 @@ class DiscreteQLearning(critic.temporal_difference.TemporalDifference):
         bootstrap_states = torch.autograd.Variable(batch.bootstrap_states, volatile=True)
 
         q_values = self._online_network(states)
-        values = q_values.index_select(dim=1, index=actions)
+        values = q_values.gather(dim=1, index=actions.unsqueeze(1))
 
         next_q_values = self._target_network(bootstrap_states)
         # noinspection PyArgumentList

@@ -28,3 +28,7 @@ class EpsilonGreedy(actor.actor_base.DiscreteActor):
         probabilities = probabilities.type(torch_util.Tensor)
         probabilities[torch.arange(0, batch_size).type(torch.LongTensor), argmax.data] += (1-epsilon)
         return probabilities
+
+
+def greedy(num_actions: int, q_model: torch.nn.Module) -> EpsilonGreedy:
+    return EpsilonGreedy(num_actions, q_model, 0, 0, 0)
