@@ -2,6 +2,8 @@ from typing import Tuple, Any, Union
 
 import numpy as np
 
+import environments.typing
+
 
 class Tabular:
     def __init__(self, transition_matrix: np.ndarray, reward_matrix: np.ndarray, terminal_states: np.ndarray,
@@ -119,7 +121,7 @@ class TabularEnv:
         return self._tabular.num_actions
 
 
-class OneHotEnv:
+class OneHotEnv(environments.typing.Environment[int]):
     def __init__(self, env: TabularEnv):
         self._env = env
         self._eye = np.eye(self._env.num_states)
@@ -129,7 +131,7 @@ class OneHotEnv:
         return cls(TabularEnv(tabular))
 
     def reset(self) -> np.ndarray:
-        return self._eye(self._env.reset())
+        return self._eye[self._env.reset()]
 
     def step(self, action) -> Tuple[np.ndarray, float, bool, Any]:
         state, reward, is_terminal, info = self._env.step(action)
