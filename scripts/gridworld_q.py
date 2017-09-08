@@ -4,6 +4,7 @@ import trainers.online_trainer
 import environments.tabular
 import actor.value
 import critic.control.q_learning
+import critic.advantages
 
 
 def _run():
@@ -14,10 +15,18 @@ def _run():
     optimizer = torch.optim.SGD(q_network.parameters(), lr=0.5)
     q_learner = critic.control.q_learning.DiscreteQLearning(q_network, optimizer, 1)
     epsilon_greedy = actor.value.EpsilonGreedy(grid.num_actions, q_network, 0, 0, 0)
-    # trainer = trainers.online_trainer.DiscreteOnlineTrainer(env, grid.num_actions, epsilon_greedy, q_learner, 0.99, 1)
-    # trainer.train(1000)
-    trainer = trainers.online_trainer.DiscreteNstepTrainer(env, grid.num_actions, epsilon_greedy, q_learner, 0.99, 1,
-                                                           batch_size=10)
+    config = trainers.online_trainer.TrainerConfig(
+        env=env,
+        num_actions=grid.num_actions,
+        state_dim=grid.num_states,
+        actor=epsilon_greedy,
+        critic=q_learner,
+        policy=epsilon_greedy,
+        advantage_provider=critic.advantages.NoAdvantageProvider(),
+        discount_factor=0.99,
+        reward_log_smoothing=1
+    )
+    trainer = trainers.online_trainer.DiscreteNstepTrainer(config, batch_size=10)
     trainer.train(100)
 
 

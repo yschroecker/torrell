@@ -2,8 +2,10 @@ import torch
 
 from environments.typing import Environment
 import critic.control.q_learning
+import critic.advantages
 import actor.value
 import trainers.experience_replay
+import trainers.online_trainer
 
 
 def dqn(env: Environment[int], q_network: torch.nn.Module, state_dim: int, num_actions: int, discount_factor: float,
@@ -13,8 +15,18 @@ def dqn(env: Environment[int], q_network: torch.nn.Module, state_dim: int, num_a
     optimizer = torch.optim.RMSprop(q_network.parameters(), lr=lr)
     q_learner = critic.control.q_learning.DiscreteQLearning(q_network, optimizer, target_update_rate)
     policy = actor.value.EpsilonGreedy(num_actions, q_network, initial_epsilon, epsilon_decay, final_epsilon)
-    trainer = trainers.experience_replay.DiscreteExperienceReplay(
-        env, state_dim, num_actions, policy, q_learner, discount_factor, reward_log_smoothing, memory_size, batch_size,
-        initial_population, maxlen)
+    config = trainers.online_trainer.TrainerConfig(
+        env=env,
+        num_actions=num_actions,
+        state_dim=state_dim,
+        actor=policy,
+        critic=q_learner,
+        policy=policy,
+        advantage_provider=critic.advantages.NoAdvantageProvider(),
+        discount_factor=discount_factor,
+        reward_log_smoothing=reward_log_smoothing,
+        maxlen=maxlen
+    )
+    trainer = trainers.experience_replay.DiscreteExperienceReplay(config, memory_size, batch_size, initial_population)
     trainer.train(num_iterations)
     return policy

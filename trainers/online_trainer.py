@@ -1,36 +1,49 @@
-import torch
+from typing import NamedTuple
 import tqdm
 import numpy as np
 
-from actor.actor_base import DiscreteActor
+from actor.actor_base import Actor
 from environments.typing import Environment
-from critic.temporal_difference import TemporalDifference, Batch
+from critic.temporal_difference import TemporalDifferenceBase, Batch
+from critic.advantages import AdvantageProvider
+from policies.policy import Policy
 import torch_util
 
 
-class DiscreteTrainer:
-    def __init__(self, env: Environment[int], num_actions: int, actor: DiscreteActor, critic: TemporalDifference,
-                 discount_factor: float, reward_log_smoothing: float, maxlen: int=-1):
-        self._env = env
-        self._num_actions = num_actions
-        self._actor = actor
-        self._critic = critic
-        self._discount_factor = discount_factor
+class TrainerConfig(NamedTuple):
+    env: Environment[int]
+    num_actions: int
+    state_dim: int
+    actor: Actor
+    critic: TemporalDifferenceBase
+    policy: Policy[int]
+    advantage_provider: AdvantageProvider
+    discount_factor: float
+    reward_log_smoothing: float
+    maxlen: int = -1
 
-        self._reward_log_smoothing = reward_log_smoothing
-        self._maxlen = maxlen
+
+class DiscreteTrainer:
+    def __init__(self, trainer_config: TrainerConfig):
+        self._env = trainer_config.env
+        self._num_actions = trainer_config.num_actions
+        self._actor = trainer_config.actor
+        self._policy = trainer_config.policy
+        self._critic = trainer_config.critic
+        self._advantage_provider = trainer_config.advantage_provider
+        self._discount_factor = trainer_config.discount_factor
+
+        self._reward_log_smoothing = trainer_config.reward_log_smoothing
+        self._maxlen = trainer_config.maxlen
         self._t = 0
         self._reward_ema = 0
         self._episode_reward = 0
-        self._next_state = env.reset()
+        self._next_state = trainer_config.env.reset()
         self._next_action = self._choose_action(self._next_state)
         self._episode = 0
 
     def _choose_action(self, state: np.ndarray) -> int:
-        action_probabilities = self._actor.probabilities(
-            torch.autograd.Variable(torch.from_numpy(np.atleast_2d(state)).type(torch_util.Tensor), volatile=True)
-        )
-        return np.random.choice(self._num_actions, p=action_probabilities.numpy()[0])
+        return self._policy.sample(state)
 
     def collect_transitions(self, num_steps: int):
         states = []
@@ -56,7 +69,7 @@ class DiscreteTrainer:
             if is_terminal or self._t == self._maxlen:
                 torch_util.global_summary_writer.add_scalar('episode reward', self._episode_reward, self._episode)
                 self._reward_ema = (1 - self._reward_log_smoothing) * self._reward_ema + \
-                                   self._reward_log_smoothing * self._episode_reward
+                    self._reward_log_smoothing * self._episode_reward
                 self._next_state = self._env.reset()
                 self._t = 0
                 self._episode_reward = 0
@@ -66,15 +79,14 @@ class DiscreteTrainer:
 
     def _train(self, iteration: int, batch: Batch) -> str:
         self._critic.update(batch)
-        self._actor.update()
+        self._actor.update(self._advantage_provider.compute_advantages(batch))
         return f"r: {self._reward_ema}, iteration: {iteration}"
 
 
 class DiscreteOnlineTrainer(DiscreteTrainer):
-    def __init__(self, env: Environment[int], num_actions: int, actor: DiscreteActor, critic: TemporalDifference,
-                 discount_factor: float, reward_log_smoothing: float, maxlen: int=-1, batch_size: int=1):
+    def __init__(self, trainer_config: TrainerConfig, batch_size: int=1):
         self._batch_size = batch_size
-        super().__init__(env, num_actions, actor, critic, discount_factor, reward_log_smoothing, maxlen)
+        super().__init__(trainer_config)
 
     def train(self, num_iterations: int):
         trange = tqdm.trange(num_iterations)
@@ -96,10 +108,9 @@ class DiscreteOnlineTrainer(DiscreteTrainer):
 
 
 class DiscreteNstepTrainer(DiscreteTrainer):
-    def __init__(self, env: Environment[int], num_actions: int, actor: DiscreteActor, critic: TemporalDifference,
-                 discount_factor: float, reward_log_smoothing: float, maxlen: int=-1, batch_size: int=1):
+    def __init__(self, trainer_config: TrainerConfig, batch_size: int=1):
         self._batch_size = batch_size
-        super().__init__(env, num_actions, actor, critic, discount_factor, reward_log_smoothing, maxlen)
+        super().__init__(trainer_config)
 
     def train(self, num_iterations: int):
         trange = tqdm.trange(num_iterations)

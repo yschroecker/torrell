@@ -1,21 +1,18 @@
 import numpy as np
 import tqdm
 
-from actor.actor_base import DiscreteActor
-from environments.typing import Environment
-from critic.temporal_difference import TemporalDifference, Batch
+from critic.temporal_difference import Batch
 import trainers.ring_buffer
 import trainers.online_trainer
 
 
 class DiscreteExperienceReplay(trainers.online_trainer.DiscreteTrainer):
-    def __init__(self, env: Environment[int], state_dim: int, num_actions: int, actor: DiscreteActor,
-                 critic: TemporalDifference, discount_factor: float, reward_log_smoothing: float, memory_size: int,
-                 batch_size: int, initial_population: int, maxlen: int=-1):
-        super().__init__(env, num_actions, actor, critic, discount_factor, reward_log_smoothing, maxlen)
+    def __init__(self, trainer_config: trainers.online_trainer.TrainerConfig, memory_size: int,
+                 batch_size: int, initial_population: int):
+        super().__init__(trainer_config)
         self._batch_size = batch_size
         self._buffers = trainers.ring_buffer.RingBufferCollection(
-            memory_size, [state_dim, 1, 1, 1, state_dim, 1],
+            memory_size, [trainer_config.state_dim, 1, 1, 1, trainer_config.state_dim, 1],
             dtypes=[np.float32, np.int32, np.float32, np.float32, np.float32, np.int32]
         )
         self._initial_population = initial_population

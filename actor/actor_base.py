@@ -1,13 +1,16 @@
 import abc
+from typing import NamedTuple
 
-import torch
+import torch_util
 
 
-class DiscreteActor(metaclass=abc.ABCMeta):
+class Batch(NamedTuple):
+    states: torch_util.Tensor
+    actions: torch_util.LongTensor
+    advantages: torch_util.Tensor
+
+
+class Actor(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def update(self):
-        pass
-
-    @abc.abstractmethod
-    def probabilities(self, states: torch.autograd.Variable, training: bool=True) -> torch.autograd.Variable:
+    def update(self, batch: Batch):
         pass
