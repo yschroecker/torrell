@@ -17,5 +17,6 @@ class Environment(Generic[ActionT], metaclass=abc.ABCMeta):
     def reset(self) -> np.ndarray:
         pass
 
+
 # noinspection PyUnresolvedReferences
 Environment.register(gym.core.Env)

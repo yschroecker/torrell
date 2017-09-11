@@ -271,5 +271,6 @@ def _run():
     state, reward, is_terminal, _ = env.step(Gridworld.RIGHT)
     print(simple_grid1.state_repr(state))
 
+
 if __name__ == '__main__':
     _run()

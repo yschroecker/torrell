@@ -32,7 +32,7 @@ class DiscreteExperienceReplay(trainers.online_trainer.DiscreteTrainer):
                     self._buffers.sample(self._batch_size)
 
                 # noinspection PyUnresolvedReferences
-                batch = Batch.from_numpy(
+                batch = Batch(
                     states=states,
                     actions=actions.squeeze(),
                     intermediate_returns=rewards.squeeze(),

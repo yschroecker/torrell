@@ -1,7 +1,7 @@
 from typing import Optional
 import abc
 
-from critic.temporal_difference import Batch as CriticBatch
+from critic.temporal_difference import TensorBatch as CriticBatch
 import critic.value_td
 from actor.actor_base import Batch as ActorBatch
 

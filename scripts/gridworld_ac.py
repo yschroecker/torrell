@@ -13,6 +13,8 @@ def _run():
     env = grid.one_hot_env()
     v_network = torch.nn.Linear(grid.num_states, 1, bias=False)
     policy_network = torch.nn.Linear(grid.num_states, grid.num_actions, bias=False)
+    v_network.cuda()
+    policy_network.cuda()
     critic_optimizer = torch.optim.SGD(v_network.parameters(), lr=0.5)
     policy_optimizer = torch.optim.SGD(policy_network.parameters(), lr=5)
     tdv = critic.value_td.ValueTD(v_network, critic_optimizer, 1)

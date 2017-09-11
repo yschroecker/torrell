@@ -13,7 +13,7 @@ class QNetwork(torch.nn.Module):
         self._h1 = torch.nn.Linear(num_states, h1dim)
         self._h2 = torch.nn.Linear(h1dim, num_actions)
 
-    def forward(self, states: torch_util.Tensor):
+    def forward(self, states: torch_util.FloatTensor):
         h1 = f.relu(self._h1(states))
         h2 = self._h2(h1)
         return h2
@@ -23,9 +23,11 @@ def _run():
     env = environments.cartpole.Cartpole()
     num_states = env.observation_space.shape[0]
     num_actions = env.action_space.n
+    q_network = QNetwork(num_states, num_actions)
+    q_network.cuda()
     algorithms.dqn.dqn(
         env=env,
-        q_network=QNetwork(num_states, num_actions),
+        q_network=q_network,
         state_dim=num_states,
         num_actions=num_actions,
         discount_factor=1,
