@@ -1,7 +1,6 @@
 from typing import NamedTuple
 import abc
 import copy
-import uuid
 
 import numpy as np
 import torch
@@ -40,12 +39,16 @@ class TemporalDifferenceBase(metaclass=abc.ABCMeta):
         self._target_update_rate = target_update_rate
 
         self._update_counter = 0
-        self.name = str(uuid.uuid4())
+        self.name = ""
 
     def _update(self, loss: torch.autograd.Variable):
         torch_util.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
         self._optimizer.zero_grad()
         loss.backward()
+        for name, parameter in self._online_network.named_parameters():
+            torch_util.global_summary_writer.add_scalar(f'{name} ({self.name})', parameter.grad.data,
+                                                        self._update_counter)
+        torch_util.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
         # noinspection PyArgumentList
         self._optimizer.step()
         self._update_counter += 1

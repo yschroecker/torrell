@@ -19,6 +19,7 @@ class EpsilonGreedy(actor.actor_base.Actor, policies.policy.Policy[int]):
         self._q_model = q_model
 
     def update(self, _: Any):
+        torch_util.global_summary_writer.add_scalar(f'epsilon', self._epsilon)
         self._epsilon = max(self._epsilon - self._decay_delta, self._final_epsilon)
 
     def probabilities(self, states: torch.autograd.Variable, training: bool=True) -> torch_util.Tensor:
