@@ -2,7 +2,7 @@ from typing import Tuple, Any, Union
 
 import numpy as np
 
-import environments.typing
+import environments.environment
 
 
 class Tabular:
@@ -121,7 +121,7 @@ class TabularEnv:
         return self._tabular.num_actions
 
 
-class OneHotEnv(environments.typing.Environment[int]):
+class OneHotEnv(environments.environment.Environment[int]):
     def __init__(self, env: TabularEnv):
         self._env = env
         self._eye = np.eye(self._env.num_states)

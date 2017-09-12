@@ -29,7 +29,7 @@ class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
         return torch_util.module_is_cuda(self._model)
 
     def sample(self, state: np.ndarray) -> ActionT:
-        state_tensor = torch.from_numpy(np.atleast_2d(state)).type(
+        state_tensor = torch.from_numpy(np.array([state])).type(
             torch.cuda.FloatTensor if torch_util.module_is_cuda(self._model) else torch.FloatTensor)
         state_var = torch.autograd.Variable(state_tensor, volatile=True)
         return self._sample(state_var)

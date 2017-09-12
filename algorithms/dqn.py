@@ -1,6 +1,6 @@
 import torch
 
-from environments.typing import Environment
+from environments.environment import Environment
 import critic.control.q_learning
 import critic.advantages
 import actor.value
@@ -14,7 +14,7 @@ def dqn(env: Environment[int], q_network: torch.nn.Module, state_dim: int, num_a
         final_epsilon: float, maxlen: int=-1) -> actor.value.EpsilonGreedy:
     optimizer = torch.optim.RMSprop(q_network.parameters(), lr=lr)
     q_learner = critic.control.q_learning.DiscreteQLearning(q_network, optimizer, target_update_rate)
-    policy = actor.value.EpsilonGreedy(num_actions, q_network, initial_epsilon, epsilon_decay, final_epsilon)
+    policy = actor.value.EpsilonGreedy(num_actions, q_network, initial_epsilon, final_epsilon, epsilon_decay)
     config = trainers.online_trainer.TrainerConfig(
         env=env,
         num_actions=num_actions,

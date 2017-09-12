@@ -3,7 +3,7 @@ import tqdm
 import numpy as np
 
 from actor.actor_base import Actor
-from environments.typing import Environment
+from environments.environment import Environment
 from critic.temporal_difference import TemporalDifferenceBase, Batch
 from critic.advantages import AdvantageProvider
 from policies.policy import Policy

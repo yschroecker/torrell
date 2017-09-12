@@ -38,6 +38,7 @@ Batch_ = Union[Batch, TensorBatch]
 
 class TemporalDifferenceBase(metaclass=abc.ABCMeta):
     def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, target_update_rate: int):
+        # TODO gradient clipping.
         self._online_network = model
         self._target_network = copy.deepcopy(self._online_network)
         self._optimizer = optimizer
