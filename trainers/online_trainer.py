@@ -3,11 +3,11 @@ import tqdm
 import numpy as np
 
 from actor.actor_base import Actor
-from environments.typing import Environment
+from environments.environment import Environment
 from critic.temporal_difference import TemporalDifferenceBase, Batch
 from critic.advantages import AdvantageProvider
 from policies.policy import Policy
-import torch_util
+import visualization
 
 
 class TrainerConfig(NamedTuple):
@@ -67,7 +67,7 @@ class DiscreteTrainer:
             next_actions.append(self._next_action)
 
             if is_terminal or self._t == self._maxlen:
-                torch_util.global_summary_writer.add_scalar('episode reward', self._episode_reward, self._episode)
+                visualization.global_summary_writer.add_scalar('episode reward', self._episode_reward, self._episode)
                 self._reward_ema = (1 - self._reward_log_smoothing) * self._reward_ema + \
                     self._reward_log_smoothing * self._episode_reward
                 self._next_state = self._env.reset()
@@ -79,7 +79,7 @@ class DiscreteTrainer:
 
     def _train(self, iteration: int, batch: Batch) -> str:
         self._critic.update(batch)
-        self._actor.update(self._advantage_provider.compute_advantages(batch))
+        self._actor.update(self._advantage_provider.compute_advantages(self._critic.get_tensor_batch(batch)))
         return f"r: {self._reward_ema}, iteration: {iteration}"
 
 
@@ -96,7 +96,7 @@ class DiscreteOnlineTrainer(DiscreteTrainer):
 
             bootstrap_weights = self._discount_factor * (1 - np.array(terminal_states, dtype=np.float32))
             # noinspection PyUnresolvedReferences
-            batch = Batch.from_numpy(
+            batch = Batch(
                 states=np.array(states, dtype=np.float32),
                 actions=np.array(actions, dtype=np.int32),
                 intermediate_returns=np.array(rewards, dtype=np.float32),
@@ -144,7 +144,7 @@ class DiscreteNstepTrainer(DiscreteTrainer):
             intermediate_returns = intermediate_returns[::-1]
 
             # noinspection PyUnresolvedReferences
-            batch = Batch.from_numpy(
+            batch = Batch(
                 states=np.array(states, dtype=np.float32),
                 actions=np.array(actions, dtype=np.int32),
                 intermediate_returns=np.array(intermediate_returns, dtype=np.float32),

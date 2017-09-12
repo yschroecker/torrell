@@ -1,7 +1,7 @@
 import torch
 
 import critic.temporal_difference
-import torch_util
+import visualization
 
 
 class DiscreteQLearning(critic.temporal_difference.TemporalDifferenceBase):
@@ -9,7 +9,7 @@ class DiscreteQLearning(critic.temporal_difference.TemporalDifferenceBase):
         super().__init__(model, optimizer, target_update_rate)
         self._loss_fn = torch.nn.MSELoss()
 
-    def update(self, batch: critic.temporal_difference.Batch):
+    def _update(self, batch: critic.temporal_difference.TensorBatch) -> torch.autograd.Variable:
         states = torch.autograd.Variable(batch.states, requires_grad=False)
         actions = torch.autograd.Variable(batch.actions, requires_grad=False)
         intermediate_returns = torch.autograd.Variable(batch.intermediate_returns, requires_grad=False)
@@ -23,10 +23,10 @@ class DiscreteQLearning(critic.temporal_difference.TemporalDifferenceBase):
         # noinspection PyArgumentList
         next_values = torch.max(next_q_values, dim=1)[0]
         target_values = intermediate_returns + bootstrap_weights*next_values
-        torch_util.global_summary_writer.add_scalar(
+        visualization.global_summary_writer.add_scalar(
             f'TD/target_values ({self.name})', target_values.mean().data[0], self._update_counter
         )
         target_values.volatile = False
         loss = self._loss_fn(values, target_values)
 
-        self._update(loss)
+        return loss
