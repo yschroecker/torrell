@@ -52,9 +52,9 @@ class TemporalDifferenceBase(metaclass=abc.ABCMeta):
         self._optimizer.zero_grad()
         loss.backward()
         for name, parameter in self._online_network.named_parameters():
-            torch_util.global_summary_writer.add_scalar(f'{name} ({self.name})', parameter.grad.data,
-                                                        self._update_counter)
-        torch_util.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
+            visualization.global_summary_writer.add_scalar(f'{name} ({self.name})', parameter.grad.data,
+                                                           self._update_counter)
+        visualization.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
         # noinspection PyArgumentList
         self._optimizer.step()
         self._update_counter += 1
