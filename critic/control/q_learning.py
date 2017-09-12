@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 
 import critic.temporal_difference
@@ -5,8 +7,9 @@ import visualization
 
 
 class DiscreteQLearning(critic.temporal_difference.TemporalDifferenceBase):
-    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, target_update_rate: int):
-        super().__init__(model, optimizer, target_update_rate)
+    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, target_update_rate: int,
+                 gradient_clip: Optional[float]=None, grad_report_rate: int=1000):
+        super().__init__(model, optimizer, target_update_rate, gradient_clip, grad_report_rate)
         self._loss_fn = torch.nn.MSELoss()
 
     def _update(self, batch: critic.temporal_difference.TensorBatch) -> torch.autograd.Variable:
@@ -23,6 +26,9 @@ class DiscreteQLearning(critic.temporal_difference.TemporalDifferenceBase):
         # noinspection PyArgumentList
         next_values = torch.max(next_q_values, dim=1)[0]
         target_values = intermediate_returns + bootstrap_weights*next_values
+        visualization.global_summary_writer.add_scalar(
+            f'TD/online_values ({self.name})', values.mean().data[0], self._update_counter
+        )
         visualization.global_summary_writer.add_scalar(
             f'TD/target_values ({self.name})', target_values.mean().data[0], self._update_counter
         )

@@ -1,4 +1,4 @@
-from typing import NamedTuple, Union
+from typing import Optional, NamedTuple, Union
 import abc
 import copy
 
@@ -36,12 +36,14 @@ Batch_ = Union[Batch, TensorBatch]
 
 
 class TemporalDifferenceBase(metaclass=abc.ABCMeta):
-    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, target_update_rate: int):
-        # TODO gradient clipping.
+    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, target_update_rate: int,
+                 gradient_clip: Optional[float]=None, grad_report_rate: int=1000):
         self._online_network = model
         self._target_network = copy.deepcopy(self._online_network)
         self._optimizer = optimizer
         self._target_update_rate = target_update_rate
+        self._grad_report_rate = grad_report_rate
+        self._gradient_clip = gradient_clip
 
         self._update_counter = 0
         self.name = ""
@@ -51,10 +53,14 @@ class TemporalDifferenceBase(metaclass=abc.ABCMeta):
         visualization.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
         self._optimizer.zero_grad()
         loss.backward()
-        for name, parameter in self._online_network.named_parameters():
-            visualization.global_summary_writer.add_scalar(f'{name} ({self.name})', parameter.grad.data,
-                                                           self._update_counter)
+        if self._update_counter % self._grad_report_rate == 0:
+            for name, parameter in self._online_network.named_parameters():
+                visualization.global_summary_writer.add_histogram(
+                    f'{name} ({self.name})', parameter.grad.data.cpu().numpy(), self._update_counter
+                )
         visualization.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
+        for parameter in self._online_network.parameters():
+            parameter.data.clamp_(-self._gradient_clip, self._gradient_clip)
         # noinspection PyArgumentList
         self._optimizer.step()
         self._update_counter += 1

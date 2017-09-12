@@ -16,16 +16,17 @@ def _run():
         state_dim=num_states,
         num_actions=num_actions,
         discount_factor=0.99,
-        lr=0.00025,
+        lr=0.00005,
         num_iterations=10000000,
-        target_update_rate=10000,
+        target_update_rate=1000,
         memory_size=100000,
         batch_size=32,
         reward_log_smoothing=0.1,
         initial_population=10000,
         initial_epsilon=1.,
         epsilon_decay=1e-5,
-        final_epsilon=0.1
+        final_epsilon=0.1,
+        gradient_clip=1
     )
 
 

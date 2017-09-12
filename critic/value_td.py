@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 
 import critic.temporal_difference
@@ -5,8 +7,9 @@ import visualization
 
 
 class ValueTD(critic.temporal_difference.TemporalDifferenceBase):
-    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, target_update_rate: int):
-        super().__init__(model, optimizer, target_update_rate)
+    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, target_update_rate: int,
+                 gradient_clip: Optional[float]=None, grad_report_rate: int=1000):
+        super().__init__(model, optimizer, target_update_rate, gradient_clip, grad_report_rate)
         self._loss_fn = torch.nn.MSELoss()
 
     def _update(self, batch: critic.temporal_difference.TensorBatch) -> torch.autograd.Variable:
