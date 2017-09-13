@@ -21,6 +21,7 @@ class TrainerConfig(NamedTuple):
     discount_factor: float
     reward_log_smoothing: float
     maxlen: int = -1
+    evaluation_frequency: int = -1
 
 
 class DiscreteTrainer:
@@ -32,18 +33,27 @@ class DiscreteTrainer:
         self._critic = trainer_config.critic
         self._advantage_provider = trainer_config.advantage_provider
         self._discount_factor = trainer_config.discount_factor
+        self._evaluation_frequency = trainer_config.evaluation_frequency
+
+        self._end_evaluation()
 
         self._reward_log_smoothing = trainer_config.reward_log_smoothing
         self._maxlen = trainer_config.maxlen
         self._t = 0
         self._reward_ema = 0
+        self._eval_reward_ema = 0
         self._episode_reward = 0
+        self._episode_score = 0
         self._next_state = trainer_config.env.reset()
         self._next_action = self._choose_action(self._next_state)
         self._episode = 0
 
+    def _end_evaluation(self):
+        self._evaluation_countdown = self._evaluation_frequency
+        self._evaluation_mode = False
+
     def _choose_action(self, state: np.ndarray) -> int:
-        return self._policy.sample(state)
+        return self._policy.sample(state, not self._evaluation_mode)
 
     def collect_transitions(self, num_steps: int):
         states = []
@@ -52,35 +62,52 @@ class DiscreteTrainer:
         terminal_states = []
         next_states = []
         next_actions = []
-        for _ in range(num_steps):
+        step = 0
+        while step < num_steps:
+            self._evaluation_countdown -= 1
             state = self._next_state
             action = self._next_action
             self._next_state, reward, is_terminal, _ = self._env.step(action)
             self._episode_reward += self._discount_factor**self._t * reward
+            self._episode_score += reward
             self._t += 1
 
-            states.append(state)
-            actions.append(action)
-            rewards.append(reward)
-            terminal_states.append(is_terminal)
-            next_states.append(self._next_state)
-            next_actions.append(self._next_action)
+            if not self._evaluation_mode:
+                states.append(state)
+                actions.append(action)
+                rewards.append(reward)
+                terminal_states.append(is_terminal)
+                next_states.append(self._next_state)
+                next_actions.append(self._next_action)
+                step += 1
 
             if is_terminal or self._t == self._maxlen:
-                visualization.global_summary_writer.add_scalar('episode reward', self._episode_reward, self._episode)
-                self._reward_ema = (1 - self._reward_log_smoothing) * self._reward_ema + \
-                    self._reward_log_smoothing * self._episode_reward
+                summary_target = 'evaluation reward' if self._evaluation_mode else 'episode reward'
+                visualization.global_summary_writer.add_scalar(summary_target, self._episode_reward, self._episode)
+                summary_target = 'evaluation score' if self._evaluation_mode else 'episode score'
+                visualization.global_summary_writer.add_scalar(summary_target, self._episode_score, self._episode)
+                if self._evaluation_mode:
+                    self._eval_reward_ema = (1 - self._reward_log_smoothing) * self._eval_reward_ema + \
+                        self._reward_log_smoothing * self._episode_reward
+                else:
+                    self._reward_ema = (1 - self._reward_log_smoothing) * self._reward_ema + \
+                        self._reward_log_smoothing * self._episode_reward
                 self._next_state = self._env.reset()
-                self._t = 0
                 self._episode_reward = 0
+                self._episode_score = 0
                 self._episode += 1
+                if self._evaluation_mode:
+                    self._end_evaluation()
+                elif self._evaluation_countdown <= 0 and self._evaluation_frequency > 0:
+                    self._evaluation_mode = True
+                self._t = 0
             self._next_action = self._choose_action(self._next_state)
         return states, actions, rewards, terminal_states, next_states, next_actions
 
     def _train(self, iteration: int, batch: Batch) -> str:
         self._critic.update(batch)
         self._actor.update(self._advantage_provider.compute_advantages(self._critic.get_tensor_batch(batch)))
-        return f"r: {self._reward_ema}, iteration: {iteration}"
+        return f"r: {self._reward_ema}/{self._eval_reward_ema}, iteration: {iteration}"
 
 
 class DiscreteOnlineTrainer(DiscreteTrainer):

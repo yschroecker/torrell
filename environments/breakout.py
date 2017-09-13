@@ -30,10 +30,12 @@ class Breakout(environments.environment.Environment[int]):
         return image
 
     def reset(self) -> np.ndarray:
-        state = self._preprocess(self._env.reset())
+        self._env.reset()
+        for _ in range(50):
+            self._env.step(np.random.choice(self.num_actions))
         for _ in range(self.history_length):
-            self._history.append(state)
-        return np.array(self._history)
+            state = self.step(np.random.choice(self.num_actions))[0]
+        return state
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, Any]:
         state, reward, is_terminal, info = self._env.step(action)
