@@ -18,7 +18,7 @@ class SoftmaxPolicy(policies.policy.Policy[int]):
         action_probabilities = torch.nn.functional.log_softmax(self._model(states))
         return action_probabilities.gather(dim=1, index=actions.unsqueeze(1))
 
-    def _sample(self, state_var: torch.autograd.Variable) -> int:
+    def _sample(self, state_var: torch.autograd.Variable, training: bool=False) -> int:
         probabilities_var = torch.nn.functional.softmax(self._model(state_var))
         probabilities = probabilities_var.data
         if self.cuda:

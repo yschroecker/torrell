@@ -15,8 +15,8 @@ def _run():
         q_network=q_network,
         state_dim=num_states,
         num_actions=num_actions,
-        discount_factor=0.99,
-        lr=0.00005,
+        discount_factor=0.95,
+        lr=0.00001,
         num_iterations=10000000,
         target_update_rate=1000,
         memory_size=100000,
@@ -26,7 +26,8 @@ def _run():
         initial_epsilon=1.,
         epsilon_decay=1e-5,
         final_epsilon=0.1,
-        gradient_clip=1
+        gradient_clip=1,
+        evaluation_frequency=10000,
     )
 
 
