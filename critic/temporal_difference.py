@@ -62,8 +62,9 @@ class TemporalDifferenceBase(metaclass=abc.ABCMeta):
                     f'grad {name} ({self.name})', parameter.grad.data.cpu().numpy(), self._update_counter
                 )
         visualization.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
-        for parameter in self._online_network.parameters():
-            parameter.data.clamp_(-self._gradient_clip, self._gradient_clip)
+        if self._gradient_clip is not None:
+            for parameter in self._online_network.parameters():
+                parameter.data.clamp_(-self._gradient_clip, self._gradient_clip)
         # noinspection PyArgumentList
         self._optimizer.step()
         self._update_counter += 1

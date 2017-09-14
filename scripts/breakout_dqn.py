@@ -28,6 +28,7 @@ def _run():
         final_epsilon=0.1,
         gradient_clip=1,
         evaluation_frequency=10000,
+        double_q=True
     )
 
 

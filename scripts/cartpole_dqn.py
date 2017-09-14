@@ -41,7 +41,8 @@ def _run():
         initial_epsilon=0,
         epsilon_decay=0,
         final_epsilon=0,
-        maxlen=200
+        maxlen=200,
+        double_q=True
     )
 
 
