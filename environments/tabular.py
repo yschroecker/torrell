@@ -1,4 +1,7 @@
 from typing import Tuple, Any, Union
+import functools
+import os
+import tqdm
 
 import numpy as np
 
@@ -10,25 +13,25 @@ class Tabular:
                  initial_states: np.ndarray):
         self.num_states = transition_matrix.shape[1]
         self.num_actions = transition_matrix.shape[0]//self.num_states
-        self._transition_matrix = transition_matrix
+        self.transition_matrix = transition_matrix
         self._reward_matrix = reward_matrix
-        self._terminal_states = terminal_states.astype(bool)
+        self.terminal_states = terminal_states.astype(bool)
         self._initial_states = initial_states
 
     def sample_initial(self) -> int:
         return np.random.choice(self.num_states, p=self._initial_states)
 
     def transition(self, state: int, action: int) -> int:
-        return np.random.choice(self.num_states, p=self._transition_matrix[self._sa_index(state, action)])
+        return np.random.choice(self.num_states, p=self.transition_matrix[self._sa_index(state, action)])
 
     def reward(self, state: int, action: int, next_state: int) -> float:
         return self._reward_matrix[self._sa_index(state, action), next_state]
 
     def is_terminal(self, state: int) -> bool:
-        return self._terminal_states[state]
+        return self.terminal_states[state]
 
     def _wrap_around_transition_matrix(self) -> np.ndarray:
-        wrap_around_matrix = self._transition_matrix.copy()
+        wrap_around_matrix = self.transition_matrix.copy()
         for state in range(self.num_states):
             if self.is_terminal(state):
                 for action in range(self.num_actions):
@@ -42,6 +45,15 @@ class Tabular:
         for state in range(self.num_states):
             policy[state, self._sa_index(state, deterministic_policy[state])] = 1
         return self.policy_transition_matrix(policy, transition_matrix)
+
+    def reward_vector(self):
+        rewards = np.zeros((self.num_states * self.num_actions,))
+        for state in range(self.num_states):
+            for action in range(self.num_actions):
+                rewards[state * self.num_actions + action] = \
+                    self.transition_matrix[state * self.num_actions + action, :] @ \
+                    self._reward_matrix[state * self.num_actions + action, :]
+        return rewards
 
     @staticmethod
     def policy_transition_matrix(policy: np.ndarray, transition_matrix: np.ndarray) -> np.ndarray:
@@ -90,6 +102,41 @@ class Tabular:
 
     def _sa_index(self, state: int, action: int) -> int:
         return self.num_actions * state + action  # don't change
+
+
+def policy_iteration(tab: Tabular, discount_factor: float) -> np.ndarray:
+    policy = np.zeros((tab.num_states,), dtype=np.int32)
+    rewards = tab.reward_vector()
+    new_policy = np.argmax(rewards.reshape((-1, tab.num_actions)), axis=1)
+    progress = tqdm.tqdm()
+    while np.any(policy != new_policy):
+        policy = new_policy.copy()
+        transition_matrix = tab.transition_matrix.reshape(tab.num_states, tab.num_actions,
+                                                          tab.num_states)[np.arange(tab.num_states), policy, :]
+        policy_rewards = rewards.reshape(-1, tab.num_actions)[np.arange(tab.num_states), policy]
+        values = np.linalg.solve(np.eye(tab.num_states) - discount_factor * transition_matrix, policy_rewards)
+        q_values = rewards + discount_factor * tab.transition_matrix @ values
+        new_policy = np.argmax(q_values.reshape((-1, tab.num_actions)), axis=1)
+        progress.update()
+    return policy
+
+
+def value_iteration(tab: Tabular, discount_factor: float, eps: float=1e-8) -> np.ndarray:
+    rewards = tab.reward_vector()
+    q_values = rewards.copy()
+    values = np.max(q_values.reshape((-1, tab.num_actions)), axis=1)
+    new_q_values = np.zeros((tab.num_states * tab.num_actions,))
+    diff = eps + 1
+    trange = tqdm.tqdm()
+    while diff > eps:
+        q_values = new_q_values
+        np.argmax(q_values.reshape((-1, tab.num_actions)), axis=1)
+        new_q_values = rewards + discount_factor * tab.transition_matrix @ values
+        values = np.max(new_q_values.reshape((-1, tab.num_actions)), axis=1)
+        diff = np.max((q_values - new_q_values)**2)
+        trange.update()
+        trange.set_description(f"diff: {diff}")
+    return np.argmax(q_values.reshape((-1, tab.num_actions)), axis=1)
 
 
 def state_reward_to_matrix(reward_vector: np.ndarray, num_actions: int) -> np.ndarray:
@@ -218,6 +265,142 @@ class Gridworld:
             return self._pos(np.asscalar(np.argmax(state)))
 
 
+class Racetrack:
+    width = 33
+    height = 9
+    num_actions = 5
+
+    @property
+    def num_states(self):
+        return self.width * self.height * 25 + 1
+
+    def _transition_probabilities(self, state, action):
+        assert 0 <= action <= 4
+
+        next_x = state[0] + state[2]
+        next_y = state[1] + state[3]
+        next_x = min(self.width - 1, max(0, next_x))
+        next_y = min(self.height - 1, max(0, next_y))
+
+        if action == 4:
+            success_probability = 1
+        elif max(abs(state[2]), abs(state[3])) == 2:
+            success_probability = 0.2
+        else:
+            success_probability = 0.9
+
+        next_dx = state[2]
+        next_dy = state[3]
+
+        if action == 0:
+            next_dx = state[2] + 1
+        elif action == 1:
+            next_dx = state[2] - 1
+        elif action == 2:
+            next_dy = state[3] + 1
+        elif action == 3:
+            next_dy = state[3] - 1
+
+        next_dx = min(2, max(-2, next_dx))
+        next_dy = min(2, max(-2, next_dy))
+
+        possible_transitions = [(1 - success_probability, [next_x, next_y, state[2], state[3]]),
+                                (success_probability, [next_x, next_y, next_dx, next_dy])]
+        return possible_transitions
+
+    def _state_from_index(self, state: int) -> Tuple[int, int, int, int]:
+        dy = state % 5 - 2
+        state //= 5
+        dx = state % 5 - 2
+        state //= 5
+        x = state % self.width
+        y = state // self.width
+        return x, y, dx, dy
+
+    def _state_index(self, state: Tuple[int, int, int, int]) -> int:
+        x, y, dx, dy = state
+        return dy + 2 + 5 * (dx + 2 + 5 * (x + self.width * y))
+
+    @functools.lru_cache(None)
+    def transition_probabilities(self, state, action):
+        possible_transitions = self._transition_probabilities(self._state_from_index(state), action)
+        probability_vector = np.zeros((self.num_states,))
+        for p, next_state in possible_transitions:
+            probability_vector[self._state_index(next_state)] += p
+        return probability_vector
+
+    def transition_matrix(self, reward_matrix: np.ndarray) -> np.ndarray:
+        matrix = np.zeros((self.num_states * self.num_actions, self.num_states))
+        for state in range(self.num_states):
+            for action in range(self.num_actions):
+                matrix[state * self.num_actions + action, :] = self.transition_probabilities(state, action)
+        indices = np.argwhere(reward_matrix[:-self.num_actions, :] == 5)
+        for sa, next_state in indices:
+            if next_state < self.num_states - 1:
+                matrix[sa, -1] += matrix[sa, next_state]
+                matrix[sa, next_state] = 0
+        for action in range(self.num_actions):
+            matrix[(self.num_states - 1) * self.num_actions + action, -1] = 1
+        return matrix
+
+    def _reward(self, state: Tuple[int, int, int, int], _: int, next_state: Tuple[int, int, int, int]):
+        y = state[1]
+
+        # Finish line
+        reward = 0.
+        if next_state[0] < 3:
+            if y <= 5 and next_state[1] >= 6:
+                reward = 5
+            elif y >= 6 and next_state[1] <= 5:
+                reward = -5
+
+        if not (0 < next_state[0] < self.width - 2 and 0 < next_state[1] < self.height - 2):
+            reward = min(reward, -0.1)
+
+        if 3 <= next_state[0] < self.width - 3 and 3 <= next_state[1] < self.height - 3:
+            reward = min(reward, -0.1)
+        return reward
+
+    def reward_matrix(self):
+        matrix = np.zeros((self.num_states * self.num_actions, self.num_states))
+        for state in range(self.num_states):
+            for next_state in range(self.num_states):
+                r = self._reward(self._state_from_index(state), 0, self._state_from_index(next_state))
+                for action in range(self.num_actions):
+                    matrix[state * self.num_actions + action, next_state] = r
+        matrix[:-self.num_actions, -1] = 5
+
+        return matrix
+
+    def __init__(self):
+        transition_matrix_file = 'transition_matrix_racetrack.npy'
+        reward_matrix_file = 'reward_matrix_racetrack.npy'
+        if not os.path.isfile(reward_matrix_file):
+            reward_matrix = self.reward_matrix()
+            np.save(reward_matrix_file, reward_matrix)
+        else:
+            reward_matrix = np.load(reward_matrix_file)
+        if not os.path.isfile(transition_matrix_file):
+            transition_matrix = self.transition_matrix(reward_matrix)
+            np.save(transition_matrix_file, transition_matrix)
+        else:
+            transition_matrix = np.load(transition_matrix_file)
+
+        terminal_states = np.zeros((self.num_states,))
+        terminal_states[-1] = True
+
+        initial_states = np.zeros((self.num_states,))
+        initial_states[self._state_index((1, 6, 0, 0))] = 1
+
+        self.tabular = Tabular(transition_matrix, reward_matrix, terminal_states, initial_states)
+
+    def tabular_env(self):
+        return TabularEnv(self.tabular)
+
+    def one_hot_env(self):
+        return OneHotEnv.from_tabular(self.tabular)
+
+
 simple_grid1 = Gridworld(
     np.array(
         [[0, 0, 0, 0, G],
@@ -265,12 +448,36 @@ simple_grid2 = Gridworld(
 
 def _run():
     env = simple_grid1.tabular_env()
+    policy = value_iteration(simple_grid1.tabular, 0.99)
+    print(policy)
     state = env.reset()
-    print(type(state))
-    print(simple_grid1.state_repr(state))
-    state, reward, is_terminal, _ = env.step(Gridworld.RIGHT)
+    is_terminal = False
+    while not is_terminal:
+        print(type(state))
+        print(simple_grid1.state_repr(state))
+        state, reward, is_terminal, _ = env.step(policy[state])
     print(simple_grid1.state_repr(state))
 
+
+def _solve_racetrack():
+    racetrack = Racetrack()
+    policy = value_iteration(racetrack.tabular, 0.99)
+    np.save('racetrack_policy.npy', policy)
+
+
+def _test_racetrack():
+    policy = np.load('racetrack_policy.npy')
+    racetrack = Racetrack()
+    env = racetrack.tabular_env()
+    state = env.reset()
+    is_terminal = False
+    score = 0
+    while not is_terminal:
+        state, reward, is_terminal, _ = env.step(policy[state])
+        print(reward)
+        score += reward
+    print("===")
+    print(score)
 
 if __name__ == '__main__':
-    _run()
+    _test_racetrack()
