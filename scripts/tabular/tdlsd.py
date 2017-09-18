@@ -13,14 +13,14 @@ class TDLSD:
         self._discount_factor = discount_factor
 
     def _update_gradient_batch(self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray,
-                               current_policy: policy.BiasedTabularPolicy):
+                               current_policy: policy.TabularPolicy):
         policy_derivative = current_policy.log_gradient(states, actions)
         update = (policy_derivative + self._discount_factor * self._gradient_target[states, :, :] -
                   self._gradient_target[next_states, :, :])
         self._gradient_target[next_states, :, :] += self._learning_rate * update
 
     def update_gradient(self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray,
-                        current_policy: policy.BiasedTabularPolicy, num_epochs: int):
+                        current_policy: policy.TabularPolicy, num_epochs: int):
         num_batches = int(np.ceil(len(actions)/self._batch_size))
         indices = np.arange(len(actions))
         for _ in range(num_epochs):
@@ -30,8 +30,5 @@ class TDLSD:
                 self._update_gradient_batch(states[batch_indices], actions[batch_indices], next_states[batch_indices],
                                             current_policy)
 
-    def correct_gradient(self, states):
-        self._gradient = self._gradient_target - np.mean(self._gradient_target[states, :, :], axis=0, keepdims=True)
-
     def gradient(self, states):
-        return self._gradient[states, :, :]
+        return self._gradient[states, :, :] - np.mean(self._gradient_target[states, :, :], axis=0, keepdims=True)

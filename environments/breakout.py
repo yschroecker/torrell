@@ -22,10 +22,10 @@ class Breakout(environments.environment.Environment[int]):
         self.num_actions = self._env.action_space.n
         self._history = collections.deque(maxlen=self.history_length)
 
-    def _preprocess(self, image: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def _preprocess(image: np.ndarray) -> np.ndarray:
         image = image[5:-5, 10:-10]
         image = skimage.color.rgb2gray(image)
-        # image = skimage.transform.resize(image, (self.image_height, self.image_width))
         image = skimage.transform.downscale_local_mean(image, (3, 3))
         return image
 
@@ -33,8 +33,10 @@ class Breakout(environments.environment.Environment[int]):
         self._env.reset()
         for _ in range(50):
             self._env.step(np.random.choice(self.num_actions))
+        assert self.history_length > 0
         for _ in range(self.history_length):
             state = self.step(np.random.choice(self.num_actions))[0]
+        # noinspection PyUnboundLocalVariable
         return state
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, Any]:

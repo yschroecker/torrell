@@ -36,8 +36,8 @@ def advice_probabilities(states: Sequence[int], actions: Sequence[int]) -> np.nd
 
 
 def train_supervised(X: np.ndarray, y: np.ndarray, num_epochs: int=100, batch_size: int=100,
-                     learning_rate: float=0.001) -> policy.BiasedTabularPolicy:
-    supervised_policy = policy.BiasedTabularPolicy(env.num_states, env.num_actions)
+                     learning_rate: float=0.001) -> policy.TabularPolicy:
+    supervised_policy = policy.TabularPolicy(env.num_states, env.num_actions)
     for _ in tqdm.trange(num_epochs):
         indices = np.arange(len(X))
         np.random.shuffle(indices)
@@ -48,10 +48,10 @@ def train_supervised(X: np.ndarray, y: np.ndarray, num_epochs: int=100, batch_si
     return supervised_policy
 
 
-def train_sagil(X: np.ndarray, y: np.ndarray, original_policy: policy.BiasedTabularPolicy, num_epochs: int=100,
+def train_sagil(X: np.ndarray, y: np.ndarray, original_policy: policy.TabularPolicy, num_epochs: int=100,
                 batch_size: int=100, learning_rate: float=0.001,
-                approximate_weights: bool=False) -> policy.BiasedTabularPolicy:
-    sagil_policy = policy.BiasedTabularPolicy(env.num_states, env.num_actions)
+                approximate_weights: bool=False) -> policy.TabularPolicy:
+    sagil_policy = policy.TabularPolicy(env.num_states, env.num_actions)
     advice_state_dist = grid.tabular.stationary_state_distribution(original_policy.matrix)
     for _ in tqdm.trange(num_epochs):
         indices = np.arange(len(X))
@@ -111,7 +111,7 @@ class SklearnModel(policy.PolicyBase):
 
 
 def _run():
-    initial_policy = policy.BiasedTabularPolicy(env.num_states, env.num_actions)
+    initial_policy = policy.TabularPolicy(env.num_states, env.num_actions)
     initial_policy.parameters[policy.BIAS, grid.RIGHT] = 5 + np.log(0.5)
     initial_policy.parameters[policy.BIAS, grid.UP] = 5
 

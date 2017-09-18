@@ -98,7 +98,8 @@ class DiscreteTrainer:
                 self._episode += 1
                 if self._evaluation_mode:
                     self._end_evaluation()
-                elif self._evaluation_countdown <= 0 and self._evaluation_frequency > 0:
+                elif self._evaluation_countdown <= 0 < self._evaluation_frequency:
+                    # noinspection PyAttributeOutsideInit
                     self._evaluation_mode = True
                 self._t = 0
             self._next_action = self._choose_action(self._next_state)

@@ -24,7 +24,7 @@ def build_chain():
 
 def _run():
     chain = build_chain()
-    current_policy = policy.BiasedTabularPolicy(num_states, chain.num_actions)
+    current_policy = policy.TabularPolicy(num_states, chain.num_actions)
     current_policy.parameters = np.array([[1, 1], [3, 1], [1, 1], [3, 2], [2, 2.5], [0, 0]])
     stationary_distribution = chain.stationary_state_distribution(current_policy.matrix)
     print(stationary_distribution)

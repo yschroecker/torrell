@@ -11,14 +11,18 @@ class PolicyBase(metaclass=ABCMeta):
         pass
 
 
-class BiasedTabularPolicy(PolicyBase):
-    def __init__(self, num_states: int, num_actions: int):
+class TabularPolicy(PolicyBase):
+    def __init__(self, num_states: int, num_actions: int, biased: bool=True):
         self._num_states = num_states
         self._num_actions = num_actions
-        self.parameters = np.zeros((num_states + 1, num_actions))
+        self._biased = biased
+        self.parameters = np.zeros((num_states + (1 if biased else 0), num_actions))
 
     def scores(self, state: Sequence[int]) -> np.ndarray:
-        return self.parameters[state, :] + self.parameters[-1, :]
+        score = self.parameters[state, :]
+        if self._biased:
+            score += self.parameters[-1, :]
+        return score
 
     def probabilities(self, state: Sequence[int]) -> np.ndarray:
         state = np.atleast_1d(state)
@@ -34,8 +38,9 @@ class BiasedTabularPolicy(PolicyBase):
         for state, action, pi, weight in zip(states, actions, probabilities, weights):
             gradient[state, :] -= pi * weight
             gradient[state, action] += 1 * weight
-            gradient[BIAS, :] -= pi * weight
-            gradient[BIAS, action] += 1 * weight
+            if self._biased:
+                gradient[BIAS, :] -= pi * weight
+                gradient[BIAS, action] += 1 * weight
 
         return gradient
 
@@ -57,6 +62,9 @@ class BiasedTabularPolicy(PolicyBase):
 
 
 if __name__ == '__main__':
-    policy = BiasedTabularPolicy(3, 2)
+    policy = TabularPolicy(3, 2)
+    print(policy.probabilities([0, 1]))
+    print(policy.log_gradient([0, 1, 0], [1, 0, 0]))
+    policy = TabularPolicy(3, 2, False)
     print(policy.probabilities([0, 1]))
     print(policy.log_gradient([0, 1, 0], [1, 0, 0]))

@@ -114,7 +114,9 @@ def policy_iteration(tab: Tabular, discount_factor: float) -> np.ndarray:
         transition_matrix = tab.transition_matrix.reshape(tab.num_states, tab.num_actions,
                                                           tab.num_states)[np.arange(tab.num_states), policy, :]
         policy_rewards = rewards.reshape(-1, tab.num_actions)[np.arange(tab.num_states), policy]
-        values = np.linalg.solve(np.eye(tab.num_states) - discount_factor * transition_matrix, policy_rewards)
+        long_term_probabilities: np.ndarray = np.eye(tab.num_states) - discount_factor * transition_matrix
+        values = np.linalg.solve(long_term_probabilities, policy_rewards)
+        # noinspection PyUnresolvedReferences
         q_values = rewards + discount_factor * tab.transition_matrix @ values
         new_policy = np.argmax(q_values.reshape((-1, tab.num_actions)), axis=1)
         progress.update()
@@ -334,7 +336,8 @@ class Racetrack:
         for state in range(self.num_states):
             for action in range(self.num_actions):
                 matrix[state * self.num_actions + action, :] = self.transition_probabilities(state, action)
-        indices = np.argwhere(reward_matrix[:-self.num_actions, :] == 5)
+        indices: np.ndarray = reward_matrix[:-self.num_actions, :] == 5
+        indices = np.argwhere(indices)
         for sa, next_state in indices:
             if next_state < self.num_states - 1:
                 matrix[sa, -1] += matrix[sa, next_state]
