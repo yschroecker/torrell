@@ -61,10 +61,12 @@ class Tabular:
 
     def stationary_state_distribution(self, policy: np.ndarray) -> np.ndarray:
         transition_matrix = self.policy_transition_matrix(policy, self._wrap_around_transition_matrix())
-        _, vectors = np.linalg.eig(transition_matrix.T)
-        for vector in vectors.T:
+        values, vectors = np.linalg.eig(transition_matrix.T)
+        for value, vector in zip(values, vectors.T):
             # noinspection PyTypeChecker
-            if np.all(vector >= 0) or np.all(vector <= 0):
+            if np.isclose(value, 1):
+                if np.min(vector) < 0:
+                    vector -= np.min(vector)
                 return np.real(vector/np.sum(vector))
         assert False
 
@@ -403,6 +405,14 @@ class Racetrack:
     def one_hot_env(self):
         return OneHotEnv.from_tabular(self.tabular)
 
+    def optimal_policy(self, discount_factor: float) -> np.ndarray:
+        policy_file = f'racetrack_policy_{discount_factor}.npy'
+        if os.path.isfile(policy_file):
+            return np.load(policy_file)
+        else:
+            policy = value_iteration(self.tabular, 0.99)
+            np.save(policy_file, policy)
+
 
 simple_grid1 = Gridworld(
     np.array(
@@ -465,11 +475,11 @@ def _run():
 def _solve_racetrack():
     racetrack = Racetrack()
     policy = value_iteration(racetrack.tabular, 0.99)
-    np.save('racetrack_policy.npy', policy)
+    np.save('racetrack_policy_0.99.npy', policy)
 
 
 def _test_racetrack():
-    policy = np.load('racetrack_policy.npy')
+    policy = np.load('racetrack_policy_0.99.npy')
     racetrack = Racetrack()
     env = racetrack.tabular_env()
     state = env.reset()
