@@ -23,7 +23,6 @@ def _run():
     td_error = critic.advantages.TDErrorAdvantageProvider(tdv)
 
     config = trainers.online_trainer.TrainerConfig(
-        env=env,
         num_actions=grid.num_actions,
         state_dim=grid.num_states,
         actor=pg,
@@ -33,7 +32,7 @@ def _run():
         discount_factor=0.99,
         reward_log_smoothing=1
     )
-    trainer = trainers.online_trainer.DiscreteOnlineTrainer(config, batch_size=32)
+    trainer = trainers.online_trainer.DiscreteOnlineTrainer(env, config, batch_size=32)
     trainer.train(1000)
 
 

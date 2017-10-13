@@ -135,7 +135,7 @@ def value_iteration(tab: Tabular, discount_factor: float, eps: float=1e-8) -> np
     while diff > eps:
         q_values = new_q_values
         np.argmax(q_values.reshape((-1, tab.num_actions)), axis=1)
-        new_q_values = rewards + discount_factor * tab.transition_matrix @ values
+        new_q_values = rewards + discount_factor * (1 - tab.terminal_states) * tab.transition_matrix @ values
         values = np.max(new_q_values.reshape((-1, tab.num_actions)), axis=1)
         diff = np.max((q_values - new_q_values)**2)
         trange.update()
@@ -374,6 +374,7 @@ class Racetrack:
                 for action in range(self.num_actions):
                     matrix[state * self.num_actions + action, next_state] = r
         matrix[:-self.num_actions, -1] = 5
+        matrix[-self.num_actions:, :] = 0
 
         return matrix
 
@@ -381,11 +382,13 @@ class Racetrack:
         transition_matrix_file = 'transition_matrix_racetrack.npy'
         reward_matrix_file = 'reward_matrix_racetrack.npy'
         if not os.path.isfile(reward_matrix_file):
+            print("Creating reward matrix")
             reward_matrix = self.reward_matrix()
             np.save(reward_matrix_file, reward_matrix)
         else:
             reward_matrix = np.load(reward_matrix_file)
         if not os.path.isfile(transition_matrix_file):
+            print("Creating transition matrix")
             transition_matrix = self.transition_matrix(reward_matrix)
             np.save(transition_matrix_file, transition_matrix)
         else:
@@ -412,6 +415,7 @@ class Racetrack:
         else:
             policy = value_iteration(self.tabular, 0.99)
             np.save(policy_file, policy)
+            return policy
 
 
 simple_grid1 = Gridworld(

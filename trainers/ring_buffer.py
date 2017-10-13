@@ -81,14 +81,22 @@ class RingBufferCollection:
         self.size = 0
         self._capacity = capacity
 
+    def __getitem__(self, item):
+        return tuple(buffer[item, ...] for buffer in self._buffers)
+
     def append(self, *elements):
         for element, buffer in zip(elements, self._buffers):
             buffer.append(element)
         self.size = min(self.size + 1, self._capacity)
 
+    def extend(self, *elements):
+        for element, buffer in zip(elements, self._buffers):
+            buffer.extend(element)
+        self.size = min(self.size + len(elements[0]), self._capacity)
+
     def sample(self, num_samples):
         indices = np.random.choice(self.size, num_samples, replace=False)
-        return (buffer[indices, :] for buffer in self._buffers)
+        return tuple(buffer[indices, :] for buffer in self._buffers)
 
     def save(self, dir_path, name):
         with open(dir_path + "/ringbuffercollection_meta_" + name, 'wb') as f:

@@ -17,21 +17,23 @@ def dqn(env: Environment[int], q_network: torch.nn.Module, state_dim: int, num_a
         evaluation_frequency: int=-1, double_q: bool=False) -> actor.value.EpsilonGreedy:
     optimizer = torch.optim.RMSprop(q_network.parameters(), lr=lr)
     q_learner_type = DiscreteDoubleQLearning if double_q else DiscreteQLearning
-    q_learner = q_learner_type(q_network, optimizer, target_update_rate, gradient_clip=gradient_clip)
+    q_learner = q_learner_type(q_network, target_update_rate, gradient_clip=gradient_clip)
     policy = actor.value.EpsilonGreedy(num_actions, q_network, initial_epsilon, final_epsilon, epsilon_decay)
     config = trainers.online_trainer.TrainerConfig(
-        env=env,
         num_actions=num_actions,
         state_dim=state_dim,
         actor=policy,
         critic=q_learner,
         policy=policy,
+        optimizer=optimizer,
         advantage_provider=critic.advantages.NoAdvantageProvider(),
         discount_factor=discount_factor,
         reward_log_smoothing=reward_log_smoothing,
         maxlen=maxlen,
         evaluation_frequency=evaluation_frequency
     )
-    trainer = trainers.experience_replay.DiscreteExperienceReplay(config, memory_size, batch_size, initial_population)
+    trainer = trainers.experience_replay.DiscreteExperienceReplay(
+        env, config, memory_size, batch_size, initial_population
+    )
     trainer.train(num_iterations)
     return policy

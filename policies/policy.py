@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, Sequence
 import abc
 
 import torch
@@ -16,6 +16,10 @@ class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def entropy(self, states: torch.autograd.Variable) -> torch.autograd.Variable:
+        pass
+
+    @abc.abstractmethod
     def _sample(self, state: torch.autograd.Variable) -> ActionT:
         pass
 
@@ -27,6 +31,11 @@ class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
     @property
     def cuda(self) -> bool:
         return torch_util.module_is_cuda(self._model)
+
+    @property
+    @abc.abstractmethod
+    def parameters(self) -> Sequence[torch.nn.Parameter]:
+        pass
 
     def sample(self, state: np.ndarray, training: bool=False) -> ActionT:
         state_tensor = torch.from_numpy(np.array([state])).type(

@@ -47,6 +47,9 @@ class EpsilonGreedy(actor.actor_base.Actor, policies.policy.Policy[int]):
     def log_probability(self, states: torch.autograd.Variable, actions: torch.autograd.Variable):
         NotImplementedError()
 
+    def entropy(self, states: torch.autograd.Variable):
+        NotImplementedError()
+
     def _sample(self, state_var: torch.autograd.Variable, training: bool=True) -> int:
         action_probabilities = self.probabilities(state_var, training)
         return np.random.choice(self.num_actions, p=action_probabilities)

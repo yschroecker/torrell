@@ -31,4 +31,4 @@ class SimpleDuelingQNetwork(torch.nn.Module):
         a = self._relu_a(self._linear_a_1(x.view(x.size(0), -1)))
         a = self._linear_a_2(a)
 
-        return a - a.mean(dim=1, keepdim=True) + v.unsqueeze(1)
+        return a - a.mean(dim=1, keepdim=True) + v

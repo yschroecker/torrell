@@ -8,9 +8,9 @@ import visualization
 
 
 class DiscreteQLearningBase(critic.temporal_difference.TemporalDifferenceBase, metaclass=abc.ABCMeta):
-    def __init__(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, target_update_rate: int,
+    def __init__(self, model: torch.nn.Module, target_update_rate: int,
                  gradient_clip: Optional[float]=None, grad_report_rate: int=1000):
-        super().__init__(model, optimizer, target_update_rate, gradient_clip, grad_report_rate)
+        super().__init__(model, target_update_rate, gradient_clip, grad_report_rate)
         self._loss_fn = torch.nn.MSELoss()
 
     @abc.abstractmethod

@@ -4,6 +4,7 @@ import torch.nn.functional as f
 import algorithms.dqn
 import environments.cartpole
 import torch_util
+import gym
 
 
 class QNetwork(torch.nn.Module):
@@ -20,7 +21,7 @@ class QNetwork(torch.nn.Module):
 
 
 def _run():
-    env = environments.cartpole.Cartpole()
+    env = gym.envs.make("Acrobot-v1")
     num_states = env.observation_space.shape[0]
     num_actions = env.action_space.n
     q_network = QNetwork(num_states, num_actions)
@@ -34,17 +35,17 @@ def _run():
         lr=1e-3,
         num_iterations=100000,
         target_update_rate=100,
-        memory_size=100000,
+        memory_size=320000,
         batch_size=32,
         reward_log_smoothing=0.1,
-        initial_population=320,
-        initial_epsilon=0,
-        epsilon_decay=0,
+        initial_population=32,
+        initial_epsilon=1,
+        epsilon_decay=0.0001,
         final_epsilon=0,
-        maxlen=200,
         double_q=True
     )
 
 
 if __name__ == '__main__':
     _run()
+
