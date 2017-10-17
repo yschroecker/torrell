@@ -4,7 +4,7 @@ import torch
 import numpy as np
 
 import chainerrl.envs.ale
-import networks.simple_shared
+import networks.erd_shared
 import critic.advantages
 import critic.value_td
 import actor.likelihood_ratio_gradient
@@ -22,14 +22,15 @@ def _run():
     image_height = 84
     history_length = 4
     num_actions = envs[0].action_space.n
-    shared_network = networks.simple_shared.SimpleSharedNetwork(
+    shared_network = networks.erd_shared.SimpleSharedNetwork(
         image_width, image_height, history_length, num_actions
     )
     shared_network.cuda()
 
     optimizer = torch.optim.RMSprop(shared_network.parameters(), lr=7e-4, eps=0.1)
-    tdv = critic.value_td.ValueTD(networks.simple_shared.VNetwork(shared_network), target_update_rate=1)
-    softmax_policy = policies.softmax.SoftmaxPolicy(networks.simple_shared.PolicyNetwork(shared_network))
+    tdv = critic.value_td.ValueTD(networks.erd_shared.VNetwork(shared_network), target_update_rate=1)
+    softmax_policy = policies.softmax.SoftmaxPolicy(networks.erd_shared.PolicyNetwork(shared_network))
+    discriminator = networks.erd_shared.DiscriminatorNetwork(shared_network)
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
 
     num_samples=30000000
@@ -65,7 +66,7 @@ def _run():
             #(1, lambda _: scheduler.step())
         ]
     )
-    trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 5, batch_size)
+    trainer = trainers.synchronous.ERDTrainer(500000, discriminator, 10000, envs, config, 5, batch_size)
     trainer.train(num_samples/batch_size)
 
 if __name__ == '__main__':

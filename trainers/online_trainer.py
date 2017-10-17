@@ -23,6 +23,7 @@ class TrainerConfig(NamedTuple):
     discount_factor: float
     reward_log_smoothing: float
     optimizer: torch.optim.Optimizer
+    reward_clipping: Tuple[float, float]=(-np.float('inf'), np.float('inf'))
     maxlen: int = -1
     evaluation_frequency: int = -1
     gradient_clipping: float = None
@@ -36,19 +37,24 @@ class DiscreteTrainerBase:
         self._advantage_provider = trainer_config.advantage_provider
         self._optimizer = trainer_config.optimizer
         self._gradient_clipping = trainer_config.gradient_clipping
+        self._reward_clipping = trainer_config.reward_clipping
 
         self._reward_ema = 0
+        self._eval_score_ema = 0
         self._eval_reward_ema = 0
         self._sample_count = 0
         self._hooks = trainer_config.hooks
+
+    def _do_updates(self, iteration: int, batch: Batch):
+        self._critic.update(batch)
+        self._actor.update(self._advantage_provider.compute_advantages(self._critic.get_tensor_batch(batch)))
 
     def do_train(self, iteration: int, batch: Batch) -> str:
         for hook_iter, hook in self._hooks:
             if iteration % hook_iter == 0:
                 hook(iteration)
         self._optimizer.zero_grad()
-        self._critic.update(batch)
-        self._actor.update(self._advantage_provider.compute_advantages(self._critic.get_tensor_batch(batch)))
+        self._do_updates(iteration, batch)
         self._sample_count += batch.states.shape[0]
         if self._gradient_clipping is not None:
             torch.nn.utils.clip_grad_norm(self._critic.parameters, self._gradient_clipping, 'inf')
@@ -101,7 +107,15 @@ class DiscreteTrainer(DiscreteTrainerBase):
             self._evaluation_countdown -= 1
             state = self._next_state
             action = self._next_action
-            self._next_state, reward, is_terminal, _ = self._env.step(action)
+            try:
+                self._next_state, reward, is_terminal, _ = self._env.step(action)
+            except Exception:
+                print("error in env encountered")
+                self._state = self._env.reset()
+                self._next_state, reward, is_terminal, _ = self._env.step(action)
+            if not self._evaluation_mode:
+                reward = np.clip(reward, self._reward_clipping[0], self._reward_clipping[1])
+
             self._episode_reward += self._discount_factor**self._t * reward
             self._episode_score += reward
             self._t += 1
@@ -115,7 +129,7 @@ class DiscreteTrainer(DiscreteTrainerBase):
                 next_actions.append(self._next_action)
                 step += 1
 
-            if is_terminal or self._t == self._maxlen:
+            if is_terminal or self._t >= self._maxlen:
                 summary_target = 'evaluation reward' if self._evaluation_mode else 'episode reward'
                 visualization.global_summary_writer.add_scalar(summary_target, self._episode_reward, self._episode)
                 summary_target = 'evaluation score' if self._evaluation_mode else 'episode score'
@@ -123,6 +137,9 @@ class DiscreteTrainer(DiscreteTrainerBase):
                 if self._evaluation_mode:
                     self._eval_reward_ema = (1 - self._reward_log_smoothing) * self._eval_reward_ema + \
                         self._reward_log_smoothing * self._episode_reward
+                    self._eval_score_ema = (1 - self._reward_log_smoothing) * self._episode_score + \
+                        self._reward_log_smoothing * self._episode_score
+
                 else:
                     self._reward_ema = (1 - self._reward_log_smoothing) * self._reward_ema + \
                         self._reward_log_smoothing * self._episode_reward
