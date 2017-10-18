@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as f
 
 import algorithms.dqn
-import environments.cartpole
 import torch_util
 import gym
 

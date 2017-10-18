@@ -13,10 +13,10 @@ def _run():
     q_network = torch.nn.Linear(grid.num_states, grid.num_actions, bias=False)
     torch.nn.init.constant(q_network.weight, 1)
     optimizer = torch.optim.SGD(q_network.parameters(), lr=0.5)
-    q_learner = critic.control.q_learning.DiscreteQLearning(q_network, optimizer, 1)
+    q_learner = critic.control.q_learning.DiscreteQLearning(q_network, 1)
     epsilon_greedy = actor.value.EpsilonGreedy(grid.num_actions, q_network, 0, 0, 0)
     config = trainers.online_trainer.TrainerConfig(
-        env=env,
+        optimizer=optimizer,
         num_actions=grid.num_actions,
         state_dim=grid.num_states,
         actor=epsilon_greedy,
@@ -26,7 +26,7 @@ def _run():
         discount_factor=0.99,
         reward_log_smoothing=1
     )
-    trainer = trainers.online_trainer.DiscreteNstepTrainer(config, batch_size=10)
+    trainer = trainers.online_trainer.DiscreteNstepTrainer(env, config, batch_size=10)
     trainer.train(100)
 
 

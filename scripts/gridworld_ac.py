@@ -15,14 +15,14 @@ def _run():
     policy_network = torch.nn.Linear(grid.num_states, grid.num_actions, bias=False)
     v_network.cuda()
     policy_network.cuda()
-    critic_optimizer = torch.optim.SGD(v_network.parameters(), lr=0.5)
-    policy_optimizer = torch.optim.SGD(policy_network.parameters(), lr=5)
-    tdv = critic.value_td.ValueTD(v_network, critic_optimizer, 1)
+    optimizer = torch.optim.SGD(v_network.parameters(), lr=0.5)
+    tdv = critic.value_td.ValueTD(v_network, 1)
     softmax_policy = policies.softmax.SoftmaxPolicy(policy_network)
-    pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, policy_optimizer)
+    pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy)
     td_error = critic.advantages.TDErrorAdvantageProvider(tdv)
 
     config = trainers.online_trainer.TrainerConfig(
+        optimizer=optimizer,
         num_actions=grid.num_actions,
         state_dim=grid.num_states,
         actor=pg,

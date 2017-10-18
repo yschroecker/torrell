@@ -32,16 +32,17 @@ class Batch(NamedTuple):
         return TensorBatch(*torch_util.load_inputs(use_cuda, self.states, self.actions, self.intermediate_returns,
                                                    self.bootstrap_states, self.bootstrap_actions,
                                                    self.bootstrap_weights),
-                            torch_util.load_input(
-                                use_cuda, np.ones_like(self.intermediate_returns)
-                                if self.importance_weights is None else self.importance_weights))
+                           torch_util.load_input(
+                               use_cuda, np.ones_like(self.intermediate_returns)
+                               if self.importance_weights is None else self.importance_weights))
+
 
 Batch_ = Union[Batch, TensorBatch]
 
 
 class TemporalDifferenceBase(metaclass=abc.ABCMeta):
     def __init__(self, model: torch.nn.Module, target_update_rate: int,
-                 gradient_clip: Optional[float]=None, grad_report_rate: int=1000):
+                 gradient_clip: Optional[float] = None, grad_report_rate: int = 1000):
         self._online_network = model
         self._target_network = copy.deepcopy(self._online_network)
         self._target_update_rate = target_update_rate

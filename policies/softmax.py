@@ -32,6 +32,7 @@ class SoftmaxPolicy(policies.policy.Policy[int]):
         return np.random.choice(probabilities.shape[0], p=probabilities)
 
     def entropy(self, states: torch.autograd.Variable) -> torch.autograd.Variable:
+        # noinspection PyArgumentList
         return -torch.sum(self._logits(states) * torch.exp(self._logits(states)), dim=1)
 
     @property

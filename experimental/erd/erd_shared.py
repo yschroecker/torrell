@@ -1,15 +1,12 @@
+import abc
+
 import torch
 import torch.nn.functional as f
 
 import torch_util
-import trainers.online_trainer
-import environments.cartpole
-import policies.softmax
-import critic.value_td
-import critic.advantages
-import actor.likelihood_ratio_gradient
 
-class SimpleSharedNetwork(torch.nn.Module):
+
+class SimpleSharedNetwork(torch.nn.Module, metaclass=abc.ABCMeta):
     def __init__(self, input_width: int, input_height: int, input_history: int, num_actions: int):
         super().__init__()
         '''
@@ -46,7 +43,7 @@ class SimpleSharedNetwork(torch.nn.Module):
         x = self._relu2(self._conv2(x))
         x = self._relu3(self._conv3(x))
         x = self._relu4(self._linear1(x.view(x.size(0), -1)))
-        #x = self._relu3(self._linear1(x.view(x.size(0), -1)))
+        # x = self._relu3(self._linear1(x.view(x.size(0), -1)))
         return x
 
     def v(self, states: torch_util.FloatTensor):
@@ -58,6 +55,7 @@ class SimpleSharedNetwork(torch.nn.Module):
     def d(self, states: torch_util.FloatTensor):
         return f.logsigmoid(self._d_out(self.shared(states)))
 
+
 class VNetwork(torch.nn.Module):
     def __init__(self, shared: torch.nn.Module):
         super().__init__()
@@ -65,6 +63,7 @@ class VNetwork(torch.nn.Module):
 
     def forward(self, states: torch_util.FloatTensor):
         return self._shared.v(states)
+
 
 class PolicyNetwork(torch.nn.Module):
     def __init__(self, shared: torch.nn.Module):
@@ -74,6 +73,7 @@ class PolicyNetwork(torch.nn.Module):
     def forward(self, states: torch_util.FloatTensor):
         return self._shared.pi(states)
 
+
 class DiscriminatorNetwork(torch.nn.Module):
     def __init__(self, shared: torch.nn.Module):
         super().__init__()
@@ -81,4 +81,3 @@ class DiscriminatorNetwork(torch.nn.Module):
 
     def forward(self, states: torch_util.FloatTensor):
         return self._shared.d(states)
-

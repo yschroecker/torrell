@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Sequence
 
 import torch
 import numpy as np
@@ -14,7 +14,7 @@ class EpsilonGreedy(actor.actor_base.Actor, policies.policy.Policy[int]):
         self.num_actions = num_actions
 
         self._final_epsilon = final_epsilon
-        self._decay_delta = (initial_epsilon-final_epsilon)*decay_rate
+        self._decay_delta = (initial_epsilon - final_epsilon) * decay_rate
         self._epsilon = initial_epsilon
         self._q_model = q_model
 
@@ -26,19 +26,19 @@ class EpsilonGreedy(actor.actor_base.Actor, policies.policy.Policy[int]):
         visualization.global_summary_writer.add_scalar(f'epsilon', self._epsilon)
         self._epsilon = max(self._epsilon - self._decay_delta, self._final_epsilon)
 
-    def probabilities(self, states: torch.autograd.Variable, training: bool=True) -> np.ndarray:
+    def probabilities(self, states: torch.autograd.Variable, training: bool = True) -> np.ndarray:
         epsilon = self._epsilon if training else 0
 
         q_values = self._model(states)
         # noinspection PyArgumentList
         _, argmax = torch.max(q_values, dim=1)
         batch_size = states.size()[0]
-        probabilities: torch.FloatTensor = torch.ones((batch_size, self.num_actions))*epsilon/self.num_actions
+        probabilities: torch.FloatTensor = torch.ones((batch_size, self.num_actions)) * epsilon / self.num_actions
         arange = torch.arange(0, batch_size).type(torch.LongTensor)
         if self.cuda:
             probabilities = probabilities.cuda()
             arange = arange.cuda()
-        probabilities[arange, argmax.data] += (1-epsilon)
+        probabilities[arange, argmax.data] += (1 - epsilon)
         if self.cuda:
             return probabilities.cpu().numpy()[0]
         else:
@@ -50,9 +50,13 @@ class EpsilonGreedy(actor.actor_base.Actor, policies.policy.Policy[int]):
     def entropy(self, states: torch.autograd.Variable):
         NotImplementedError()
 
-    def _sample(self, state_var: torch.autograd.Variable, training: bool=True) -> int:
+    def _sample(self, state_var: torch.autograd.Variable, training: bool = True) -> int:
         action_probabilities = self.probabilities(state_var, training)
         return np.random.choice(self.num_actions, p=action_probabilities)
+
+    @property
+    def parameters(self) -> Sequence[torch.nn.Parameter]:
+        return []
 
 
 def greedy(num_actions: int, q_model: torch.nn.Module) -> EpsilonGreedy:

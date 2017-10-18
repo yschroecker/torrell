@@ -32,14 +32,15 @@ def _run():
     softmax_policy = policies.softmax.SoftmaxPolicy(networks.simple_shared.PolicyNetwork(shared_network))
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
 
-    num_samples=30000000
-    batch_size=32
-    scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer, lambda iteration: 1-iteration*batch_size/num_samples
-    )
-    #scheduler = torch.optim.lr_scheduler.StepLR(
-        #optimizer, step_size=(num_samples/batch_size)/6, gamma=0.5
-    #)
+    num_samples = 30000000
+    batch_size = 32
+    # scheduler = torch.optim.lr_scheduler.LambdaLR(
+    # optimizer, lambda iteration: 1 - iteration * batch_size / num_samples
+    # )
+
+    # scheduler = torch.optim.lr_scheduler.StepLR(
+    # optimizer, step_size=(num_samples/batch_size)/6, gamma=0.5
+    # )
     def image_summary(iteration):
         idx = np.random.choice(16)
         visualization.global_summary_writer.add_image(f'state_{idx}', envs[idx].ale.getScreenRGB(), iteration)
@@ -59,15 +60,15 @@ def _run():
         evaluation_frequency=1000,
         maxlen=10000,
         hooks=[
-            (100000, lambda iteration: torch.save(shared_network, 
-                f"/home/yannick/breakout_policies/{iteration}")),
+            (100000, lambda iteration: torch.save(shared_network,
+                                                  f"/home/yannick/breakout_policies/{iteration}")),
             (100, image_summary)
-            #(1, lambda _: scheduler.step())
+            # (1, lambda _: scheduler.step())
         ]
     )
     trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 5, batch_size)
-    trainer.train(num_samples/batch_size)
+    trainer.train(num_samples // batch_size)
+
 
 if __name__ == '__main__':
     _run()
-

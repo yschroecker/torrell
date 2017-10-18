@@ -1,6 +1,3 @@
-from typing import Optional
-
-from environments.environment import Environment
 import critic.advantages
 import actor.value
 import trainers.experience_replay
@@ -32,10 +29,10 @@ def _run():
     q_network = QNetwork(num_states, num_actions)
     q_network.cuda()
     optimizer = torch.optim.RMSprop(q_network.parameters(), lr=1e-3)
-    q_learner = critic.value_td.QValueTD(q_network, optimizer, 100, gradient_clip=None)
+    q_learner = critic.value_td.QValueTD(q_network, 100, gradient_clip=None)
     policy = actor.value.EpsilonGreedy(num_actions, q_network, 1, 0, 0.0001)
     config = trainers.online_trainer.TrainerConfig(
-        env=env,
+        optimizer=optimizer,
         num_actions=num_actions,
         state_dim=num_states,
         actor=policy,
@@ -45,7 +42,7 @@ def _run():
         discount_factor=1,
         reward_log_smoothing=0.1
     )
-    trainer = trainers.experience_replay.DiscreteExperienceReplay(config, 32000, 32, 32)
+    trainer = trainers.experience_replay.DiscreteExperienceReplay(env, config, 32000, 32, 32)
     trainer.train(100000)
 
 

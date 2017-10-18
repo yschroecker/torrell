@@ -1,4 +1,4 @@
-from typing import Tuple, NamedTuple, Optional, Sequence, Callable
+from typing import Tuple, NamedTuple, Sequence, Callable
 
 import torch.optim
 import torch.optim.lr_scheduler
@@ -23,25 +23,26 @@ class TrainerConfig(NamedTuple):
     discount_factor: float
     reward_log_smoothing: float
     optimizer: torch.optim.Optimizer
-    reward_clipping: Tuple[float, float]=(-np.float('inf'), np.float('inf'))
+    reward_clipping: Tuple[float, float] = (-np.float('inf'), np.float('inf'))
     maxlen: int = -1
     evaluation_frequency: int = -1
     gradient_clipping: float = None
-    hooks: Sequence[Tuple[int, Callable[[int], None]]]=[]
+    hooks: Sequence[Tuple[int, Callable[[int], None]]] = []
 
 
 class DiscreteTrainerBase:
     def __init__(self, trainer_config: TrainerConfig):
         self._actor = trainer_config.actor
+        self._policy = trainer_config.policy
         self._critic = trainer_config.critic
         self._advantage_provider = trainer_config.advantage_provider
         self._optimizer = trainer_config.optimizer
         self._gradient_clipping = trainer_config.gradient_clipping
         self._reward_clipping = trainer_config.reward_clipping
 
-        self._reward_ema = 0
-        self._eval_score_ema = 0
-        self._eval_reward_ema = 0
+        self.reward_ema = 0
+        self.eval_score_ema = 0
+        self.eval_reward_ema = 0
         self._sample_count = 0
         self._hooks = trainer_config.hooks
 
@@ -57,11 +58,15 @@ class DiscreteTrainerBase:
         self._do_updates(iteration, batch)
         self._sample_count += batch.states.shape[0]
         if self._gradient_clipping is not None:
+            # noinspection PyTypeChecker
             torch.nn.utils.clip_grad_norm(self._critic.parameters, self._gradient_clipping, 'inf')
-            torch.nn.utils.clip_grad_norm(self._actor.parameters, self._gradient_clipping, 'inf')
+            # noinspection PyTypeChecker
+            torch.nn.utils.clip_grad_norm(self._policy.parameters, self._gradient_clipping, 'inf')
         visualization.global_summary_writer.add_scalar('LR', self._optimizer.param_groups[0]['lr'], iteration)
+        # noinspection PyArgumentList
         self._optimizer.step()
-        return f"r: {self._reward_ema}/{self._eval_reward_ema}, iteration: {iteration}, samples: {self._sample_count}"
+        return f"r: {self.reward_ema}/{self.eval_reward_ema}, iteration: {iteration}, samples: {self._sample_count}"
+
 
 class DiscreteTrainer(DiscreteTrainerBase):
     def __init__(self, env: Environment[int], trainer_config: TrainerConfig):
@@ -77,8 +82,8 @@ class DiscreteTrainer(DiscreteTrainerBase):
         self._reward_log_smoothing = trainer_config.reward_log_smoothing
         self._maxlen = trainer_config.maxlen
         self._t = 0
-        self._episode_reward = 0
-        self._episode_score = 0
+        self._episode_reward = 0.
+        self._episode_score = 0.
         self._next_state = env.reset()
         self._next_action = self._choose_action(self._next_state)
         self._episode = 0
@@ -107,16 +112,12 @@ class DiscreteTrainer(DiscreteTrainerBase):
             self._evaluation_countdown -= 1
             state = self._next_state
             action = self._next_action
-            try:
-                self._next_state, reward, is_terminal, _ = self._env.step(action)
-            except Exception:
-                print("error in env encountered")
-                self._state = self._env.reset()
-                self._next_state, reward, is_terminal, _ = self._env.step(action)
+            self._next_state, reward, is_terminal, _ = self._env.step(action)
             if not self._evaluation_mode:
+                # noinspection PyTypeChecker
                 reward = np.clip(reward, self._reward_clipping[0], self._reward_clipping[1])
 
-            self._episode_reward += self._discount_factor**self._t * reward
+            self._episode_reward += self._discount_factor ** self._t * reward
             self._episode_score += reward
             self._t += 1
 
@@ -135,17 +136,17 @@ class DiscreteTrainer(DiscreteTrainerBase):
                 summary_target = 'evaluation score' if self._evaluation_mode else 'episode score'
                 visualization.global_summary_writer.add_scalar(summary_target, self._episode_score, self._episode)
                 if self._evaluation_mode:
-                    self._eval_reward_ema = (1 - self._reward_log_smoothing) * self._eval_reward_ema + \
+                    self.eval_reward_ema = (1 - self._reward_log_smoothing) * self.eval_reward_ema + \
                         self._reward_log_smoothing * self._episode_reward
-                    self._eval_score_ema = (1 - self._reward_log_smoothing) * self._episode_score + \
+                    self.eval_score_ema = (1 - self._reward_log_smoothing) * self._episode_score + \
                         self._reward_log_smoothing * self._episode_score
 
                 else:
-                    self._reward_ema = (1 - self._reward_log_smoothing) * self._reward_ema + \
-                        self._reward_log_smoothing * self._episode_reward
+                    self.reward_ema = (1 - self._reward_log_smoothing) * self.reward_ema + \
+                                      self._reward_log_smoothing * self._episode_reward
                 self._next_state = self._env.reset()
-                self._episode_reward = 0
-                self._episode_score = 0
+                self._episode_reward = 0.
+                self._episode_score = 0.
                 self._episode += 1
                 if self._evaluation_mode:
                     self._end_evaluation()
@@ -158,7 +159,7 @@ class DiscreteTrainer(DiscreteTrainerBase):
 
 
 class DiscreteOnlineTrainer(DiscreteTrainer):
-    def __init__(self, env: Environment[int], trainer_config: TrainerConfig, batch_size: int=1):
+    def __init__(self, env: Environment[int], trainer_config: TrainerConfig, batch_size: int = 1):
         self._batch_size = batch_size
         super().__init__(env, trainer_config)
 
@@ -182,7 +183,7 @@ class DiscreteOnlineTrainer(DiscreteTrainer):
 
 
 class DiscreteNstepTrainer(DiscreteTrainer):
-    def __init__(self, env: Environment[int], trainer_config: TrainerConfig, batch_size: int=1):
+    def __init__(self, env: Environment[int], trainer_config: TrainerConfig, batch_size: int = 1):
         self._batch_size = batch_size
         super().__init__(env, trainer_config)
 
@@ -205,7 +206,7 @@ class DiscreteNstepTrainer(DiscreteTrainer):
                 current_return = rewards[i]
             else:
                 bootstrap_weights.append(bootstrap_weights[-1] * self._discount_factor)
-                current_return = rewards[i] + self._discount_factor*current_return
+                current_return = rewards[i] + self._discount_factor * current_return
             intermediate_returns.append(current_return)
             bootstrap_states.append(final_state)
             bootstrap_actions.append(final_action)
@@ -226,10 +227,8 @@ class DiscreteNstepTrainer(DiscreteTrainer):
         )
         return batch
 
-
     def train(self, num_iterations: int):
         trange = tqdm.trange(num_iterations)
         for iteration in trange:
             batch = self.get_batch()
             trange.set_description(self.do_train(iteration, batch))
-

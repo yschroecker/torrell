@@ -5,6 +5,7 @@ from scripts.tabular import policy
 import environments.environment
 
 
+# noinspection PyPep8Naming
 def train_supervised(env: environments.environment, X: np.ndarray, y: np.ndarray, num_epochs: int,
                      batch_size: int, learning_rate: float, lr_decay: float) -> policy.TabularPolicy:
     supervised_policy = policy.TabularPolicy(env.num_states, env.num_actions)

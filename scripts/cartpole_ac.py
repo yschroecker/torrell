@@ -1,3 +1,5 @@
+import abc
+
 import torch
 import torch.nn.functional as f
 
@@ -9,7 +11,8 @@ import critic.value_td
 import critic.advantages
 import actor.likelihood_ratio_gradient
 
-class SharedNetwork(torch.nn.Module):
+
+class SharedNetwork(torch.nn.Module, metaclass=abc.ABCMeta):
     def __init__(self, num_states: int, num_actions: int):
         super().__init__()
         hdim = 200
@@ -28,6 +31,7 @@ class SharedNetwork(torch.nn.Module):
     def pi(self, states: torch_util.FloatTensor):
         return self._pi_out(self.shared(states))
 
+
 class VNetwork(torch.nn.Module):
     def __init__(self, shared: torch.nn.Module):
         super().__init__()
@@ -36,6 +40,7 @@ class VNetwork(torch.nn.Module):
     def forward(self, states: torch_util.FloatTensor):
         return self._shared.v(states)
 
+
 class PolicyNetwork(torch.nn.Module):
     def __init__(self, shared: torch.nn.Module):
         super().__init__()
@@ -43,28 +48,6 @@ class PolicyNetwork(torch.nn.Module):
 
     def forward(self, states: torch_util.FloatTensor):
         return self._shared.pi(states)
-
-'''
-class VNetwork(torch.nn.Module):
-    def __init__(self, num_states: int, num_actions: int):
-        super().__init__()
-        h1dim = 80
-        self._h1 = torch.nn.Linear(num_states, h1dim)
-        self._h2 = torch.nn.Linear(h1dim, 1)
-
-    def forward(self, states: torch_util.FloatTensor):
-        h1 = f.relu(self._h1(states))
-        h2 = self._h2(h1)
-        return h2
-
-class PolicyNetwork(torch.nn.Module):
-    def __init__(self, num_states: int, num_actions: int):
-        super().__init__()
-        self._linear = torch.nn.Linear(num_states, num_actions)
-
-    def forward(self, states: torch_util.FloatTensor):
-        return self._linear(states)
-'''
 
 
 def _run():

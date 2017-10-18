@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 
 import critic.temporal_difference
@@ -20,13 +18,13 @@ class ValueTD(critic.temporal_difference.TemporalDifferenceBase):
         values_o = self._online_network(states).squeeze()
         next_values_t = self._target_network(bootstrap_states).squeeze()
 
-        target_values = intermediate_returns + bootstrap_weights*next_values_t
+        target_values = intermediate_returns + bootstrap_weights * next_values_t
         visualization.global_summary_writer.add_scalar(
             f'TD/target_values ({self.name})', target_values.mean().data[0], self._update_counter
         )
         target_values.volatile = False
 
-        return torch.mean(importance_weights * (values_o.squeeze() - target_values)**2)
+        return torch.mean(importance_weights * (values_o.squeeze() - target_values) ** 2)
 
     def values(self, states: torch.autograd.Variable) -> torch.autograd.Variable:
         return self._online_network(states).squeeze()
@@ -50,14 +48,12 @@ class QValueTD(critic.temporal_difference.TemporalDifferenceBase):
         next_q_values_t = self._target_network(bootstrap_states)
         next_values_t = next_q_values_t.gather(dim=1, index=bootstrap_actions.unsqueeze(1)).squeeze()
 
-        target_values = intermediate_returns + bootstrap_weights*next_values_t
+        target_values = intermediate_returns + bootstrap_weights * next_values_t
         visualization.global_summary_writer.add_scalar(
             f'TD/target_values ({self.name})', target_values.mean().data[0], self._update_counter
         )
         target_values.volatile = False
-        return torch.mean(importance_weights * (values_o.squeeze() - target_values)**2)
-
+        return torch.mean(importance_weights * (values_o.squeeze() - target_values) ** 2)
 
     def values(self, states: torch.autograd.Variable) -> torch.autograd.Variable:
         return self._online_network(states).squeeze()
-

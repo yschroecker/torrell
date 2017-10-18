@@ -12,7 +12,7 @@ class Tabular:
     def __init__(self, transition_matrix: np.ndarray, reward_matrix: np.ndarray, terminal_states: np.ndarray,
                  initial_states: np.ndarray):
         self.num_states = transition_matrix.shape[1]
-        self.num_actions = transition_matrix.shape[0]//self.num_states
+        self.num_actions = transition_matrix.shape[0] // self.num_states
         self.transition_matrix = transition_matrix
         self._reward_matrix = reward_matrix
         self.terminal_states = terminal_states.astype(bool)
@@ -67,7 +67,7 @@ class Tabular:
             if np.isclose(value, 1):
                 if np.min(vector) < 0:
                     vector -= np.min(vector)
-                return np.real(vector/np.sum(vector))
+                return np.real(vector / np.sum(vector))
         assert False
 
     def reverse_transition_matrix(self, policy: np.ndarray, stationary_distribution: np.ndarray) -> np.ndarray:
@@ -78,7 +78,7 @@ class Tabular:
                 for next_state in range(self.num_states):
                     sa = self._sa_index(state, action)
                     reverse_transitions[next_state, sa] = transition_matrix[sa, next_state] * policy[state, sa] * \
-                        stationary_distribution[state]/stationary_distribution[next_state]
+                        stationary_distribution[state] / stationary_distribution[next_state]
         return reverse_transitions
 
     def log_stationary_derivative(self, policy: np.ndarray, log_policy_derivative: np.ndarray,
@@ -92,7 +92,7 @@ class Tabular:
         parameter_dims = log_policy_derivative.shape[1:]
         reverse_transitions = self.reverse_transition_matrix(policy, stationary_distribution)
         reverse_state_transitions = sum(
-            [reverse_transitions[:, np.arange(0, self.num_actions*self.num_states, self.num_actions) + i]
+            [reverse_transitions[:, np.arange(0, self.num_actions * self.num_states, self.num_actions) + i]
              for i in range(self.num_actions)]
         )
         # should be solve but is sometimes singular. Probably for numerical reasons?
@@ -125,7 +125,7 @@ def policy_iteration(tab: Tabular, discount_factor: float) -> np.ndarray:
     return policy
 
 
-def value_iteration(tab: Tabular, discount_factor: float, eps: float=1e-8) -> np.ndarray:
+def value_iteration(tab: Tabular, discount_factor: float, eps: float = 1e-8) -> np.ndarray:
     rewards = tab.reward_vector()
     q_values = rewards.copy()
     values = np.max(q_values.reshape((-1, tab.num_actions)), axis=1)
@@ -137,7 +137,7 @@ def value_iteration(tab: Tabular, discount_factor: float, eps: float=1e-8) -> np
         np.argmax(q_values.reshape((-1, tab.num_actions)), axis=1)
         new_q_values = rewards + discount_factor * (1 - tab.terminal_states) * tab.transition_matrix @ values
         values = np.max(new_q_values.reshape((-1, tab.num_actions)), axis=1)
-        diff = np.max((q_values - new_q_values)**2)
+        diff = np.max((q_values - new_q_values) ** 2)
         trange.update()
         trange.set_description(f"diff: {diff}")
     return np.argmax(q_values.reshape((-1, tab.num_actions)), axis=1)
@@ -212,7 +212,7 @@ class Gridworld:
         else:
             return original
 
-    def __init__(self, transition_grid: np.ndarray, reward_grid: np.ndarray, transition_noise: float=0):
+    def __init__(self, transition_grid: np.ndarray, reward_grid: np.ndarray, transition_noise: float = 0):
         self.height = transition_grid.shape[0]
         self.width = transition_grid.shape[1]
         self.num_states = self.width * self.height
@@ -228,20 +228,20 @@ class Gridworld:
             down = self._state_index(*self._consolidate_pos(transition_grid, (pos[0], pos[1] + 1), pos))
 
             transition_matrix[state * self.num_actions + self.LEFT, left] += 1 - transition_noise
-            transition_matrix[state * self.num_actions + self.LEFT, up] += transition_noise/2
-            transition_matrix[state * self.num_actions + self.LEFT, down] += transition_noise/2
+            transition_matrix[state * self.num_actions + self.LEFT, up] += transition_noise / 2
+            transition_matrix[state * self.num_actions + self.LEFT, down] += transition_noise / 2
 
             transition_matrix[state * self.num_actions + self.RIGHT, right] += 1 - transition_noise
-            transition_matrix[state * self.num_actions + self.RIGHT, up] += transition_noise/2
-            transition_matrix[state * self.num_actions + self.RIGHT, down] += transition_noise/2
+            transition_matrix[state * self.num_actions + self.RIGHT, up] += transition_noise / 2
+            transition_matrix[state * self.num_actions + self.RIGHT, down] += transition_noise / 2
 
             transition_matrix[state * self.num_actions + self.UP, up] += 1 - transition_noise
-            transition_matrix[state * self.num_actions + self.UP, left] += transition_noise/2
-            transition_matrix[state * self.num_actions + self.UP, right] += transition_noise/2
+            transition_matrix[state * self.num_actions + self.UP, left] += transition_noise / 2
+            transition_matrix[state * self.num_actions + self.UP, right] += transition_noise / 2
 
             transition_matrix[state * self.num_actions + self.DOWN, down] += 1 - transition_noise
-            transition_matrix[state * self.num_actions + self.DOWN, left] += transition_noise/2
-            transition_matrix[state * self.num_actions + self.DOWN, right] += transition_noise/2
+            transition_matrix[state * self.num_actions + self.DOWN, left] += transition_noise / 2
+            transition_matrix[state * self.num_actions + self.DOWN, right] += transition_noise / 2
 
         # Reward matrix
         reward_vector = np.zeros((self.num_states,))
@@ -495,6 +495,7 @@ def _test_racetrack():
         score += reward
     print("===")
     print(score)
+
 
 if __name__ == '__main__':
     _test_racetrack()

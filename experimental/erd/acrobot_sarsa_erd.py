@@ -1,6 +1,4 @@
-from typing import Optional
-
-from environments.environment import Environment
+import experimental.erd.erd_trainer
 import critic.advantages
 import actor.value
 import trainers.experience_replay
@@ -24,6 +22,7 @@ class QNetwork(torch.nn.Module):
         h2 = self._h2(h1)
         return h2
 
+
 class DiscriminatorNetwork(torch.nn.Module):
     def __init__(self, num_states: int, num_actions: int):
         super().__init__()
@@ -44,10 +43,10 @@ def _run():
     q_network = QNetwork(num_states, num_actions)
     q_network.cuda()
     optimizer = torch.optim.RMSprop(q_network.parameters(), lr=1e-3)
-    q_learner = critic.value_td.QValueTD(q_network, optimizer, 100, gradient_clip=None)
+    q_learner = critic.value_td.QValueTD(q_network, 100, gradient_clip=None)
     policy = actor.value.EpsilonGreedy(num_actions, q_network, 1, 0, 0.0001)
     config = trainers.online_trainer.TrainerConfig(
-        env=env,
+        optimizer=optimizer,
         num_actions=num_actions,
         state_dim=num_states,
         actor=policy,
@@ -59,7 +58,7 @@ def _run():
     )
     discriminator = DiscriminatorNetwork(num_states, num_actions)
     discriminator_optimizer = torch.optim.RMSprop(discriminator.parameters(), lr=1e-3)
-    trainer = trainers.experience_replay.DiscreteExperienceReplayWithDiscriminator(
+    trainer = experimental.erd.erd_trainer.DiscreteExperienceReplayWithDiscriminator(
         discriminator, discriminator_optimizer, 960, 100, config, 32000, 32, 1000, 32
     )
     trainer.train(100000)
