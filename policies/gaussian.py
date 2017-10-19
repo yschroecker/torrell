@@ -9,11 +9,13 @@ import policies.policy
 
 class SphericalGaussianPolicy(policies.policy.Policy[np.ndarray]):
     def __init__(self, action_dim: int, network: torch.nn.Module, fixed_noise: Optional[np.ndarray],
-                 min_stddev: float=0):
+                 min_stddev: float=0, noise_sample_rate: int=1):
         self._network = network
         self._fixed_noise = fixed_noise
         self._action_dim = action_dim
         self._min_stddev = min_stddev
+        self._noise_sample_rate = noise_sample_rate
+        self._noise = None
 
     def log_probability(self, states: torch.autograd.Variable, actions: torch.autograd.Variable) -> \
             torch.autograd.Variable:
@@ -25,7 +27,7 @@ class SphericalGaussianPolicy(policies.policy.Policy[np.ndarray]):
         log_pdf = -0.5 * (((actions - means)/torch.exp(logstddevs))**2).sum(dim=1) + lognorm_constants
         return log_pdf
 
-    def _sample(self, state: torch.autograd.Variable, _) -> np.ndarray:
+    def _sample(self, state: torch.autograd.Variable, t: int, _) -> np.ndarray:
         out = self._network(state).data
         if self.cuda:
             out = out.cpu()
@@ -37,6 +39,7 @@ class SphericalGaussianPolicy(policies.policy.Policy[np.ndarray]):
         stddev = np.exp(logstddev) + self._min_stddev
         mean = out[0, :self._action_dim]
         action = np.random.normal(mean, stddev)
+
         return action.astype(np.float32)
 
     @property

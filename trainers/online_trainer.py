@@ -86,7 +86,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         self._episode_reward = 0.
         self._episode_score = 0.
         self._next_state = env.reset()
-        self._next_action = self._choose_action(self._next_state)
+        self._next_action = self._choose_action(self._next_state, 0)
         self._episode = 0
 
     def _end_evaluation(self):
@@ -98,8 +98,8 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         self._evaluation_mode = True
         self._env.treat_life_lost_as_terminal = False
 
-    def _choose_action(self, state: np.ndarray) -> int:
-        return self._policy.sample(state, not self._evaluation_mode)
+    def _choose_action(self, state: np.ndarray, t: int) -> int:
+        return self._policy.sample(state, t, not self._evaluation_mode)
 
     def collect_transitions(self, num_steps: int):
         states = []
@@ -131,7 +131,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
                 next_actions.append(self._next_action)
                 step += 1
 
-            if is_terminal or self._t >= self._maxlen:
+            if is_terminal or self._t >= self._maxlen > 0:
                 summary_target = 'evaluation reward' if self._evaluation_mode else 'episode reward'
                 visualization.global_summary_writer.add_scalar(summary_target, self._episode_reward, self._episode)
                 summary_target = 'evaluation score' if self._evaluation_mode else 'episode score'
@@ -155,7 +155,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
                     # noinspection PyAttributeOutsideInit
                     self._start_evaluation()
                 self._t = 0
-            self._next_action = self._choose_action(self._next_state)
+            self._next_action = self._choose_action(self._next_state, self._t)
         return states, actions, rewards, terminal_states, next_states, next_actions
 
 
