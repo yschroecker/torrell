@@ -15,8 +15,10 @@ class DiscreteExperienceReplay(trainers.online_trainer.DiscreteTrainer):
         super().__init__(env, trainer_config)
         self._batch_size = batch_size
         self._buffers = trainers.ring_buffer.RingBufferCollection(
-            memory_size, [trainer_config.state_dim, 1, 1, 1, trainer_config.state_dim, 1],
-            dtypes=[np.float32, np.int32, np.float32, np.float32, np.float32, np.int32]
+            memory_size, [trainer_config.state_dim, trainer_config.action_dim, 1, 1, trainer_config.state_dim,
+                          trainer_config.action_dim],
+            dtypes=[np.float32, trainer_config.action_type, np.float32, np.float32, np.float32,
+                    trainer_config.action_type]
         )
         self._initial_population = initial_population
         self._transition_batch_size = transition_batch_size

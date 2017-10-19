@@ -11,11 +11,11 @@ import visualization
 
 class TensorBatch(NamedTuple):
     states: torch_util.FloatTensor
-    actions: torch_util.LongTensor
+    actions: torch_util.TensorT
     intermediate_returns: torch_util.FloatTensor
     bootstrap_states: torch_util.FloatTensor
     bootstrap_actions: torch_util.LongTensor
-    bootstrap_weights: torch_util.FloatTensor
+    bootstrap_weights: torch_util.TensorT
     importance_weights: torch_util.FloatTensor
 
 

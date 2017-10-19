@@ -66,6 +66,7 @@ def _run():
             # (1, lambda _: scheduler.step())
         ]
     )
+    # noinspection PyTypeChecker
     trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 5, batch_size)
     trainer.train(num_samples // batch_size)
 

@@ -67,6 +67,7 @@ def _run():
             # (1, lambda _: scheduler.step())
         ]
     )
+    # noinspection PyTypeChecker
     trainer = experimental.erd.erd_trainer.ERDTrainer(25000, discriminator, 10000, envs, config, 5, batch_size,
                                                       memory_rate=0.1)
     trainer.train(num_samples // batch_size)

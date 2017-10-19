@@ -3,6 +3,7 @@ from typing import Generic, TypeVar, Tuple, Any
 import abc
 
 import gym
+import chainerrl.envs.ale
 import numpy as np
 
 ActionT = TypeVar('ActionT')
@@ -20,3 +21,5 @@ class Environment(Generic[ActionT], metaclass=abc.ABCMeta):
 
 # noinspection PyUnresolvedReferences
 Environment.register(gym.core.Env)
+# noinspection PyUnresolvedReferences
+Environment.register(chainerrl.envs.ale.ALE)

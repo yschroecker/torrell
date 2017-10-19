@@ -20,7 +20,7 @@ class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def _sample(self, state: torch.autograd.Variable) -> ActionT:
+    def _sample(self, state: torch.autograd.Variable, training: bool) -> ActionT:
         pass
 
     @property

@@ -1,4 +1,4 @@
-from typing import Tuple, NamedTuple, Sequence, Callable
+from typing import Type, Tuple, NamedTuple, Sequence, Callable, Generic
 
 import torch.optim
 import torch.optim.lr_scheduler
@@ -6,7 +6,7 @@ import tqdm
 import numpy as np
 
 from actor.actor_base import Actor
-from environments.environment import Environment
+from environments.environment import Environment, ActionT
 from critic.temporal_difference import TemporalDifferenceBase, Batch
 from critic.advantages import AdvantageProvider
 from policies.policy import Policy
@@ -14,7 +14,7 @@ import visualization
 
 
 class TrainerConfig(NamedTuple):
-    num_actions: int
+    action_type: Type[np.dtype]
     state_dim: int
     actor: Actor
     critic: TemporalDifferenceBase
@@ -23,8 +23,9 @@ class TrainerConfig(NamedTuple):
     discount_factor: float
     reward_log_smoothing: float
     optimizer: torch.optim.Optimizer
+    action_dim: int = 1
     reward_clipping: Tuple[float, float] = (-np.float('inf'), np.float('inf'))
-    maxlen: int = -1
+    max_len: int = -1
     evaluation_frequency: int = -1
     gradient_clipping: float = None
     hooks: Sequence[Tuple[int, Callable[[int], None]]] = []
@@ -68,19 +69,19 @@ class DiscreteTrainerBase:
         return f"r: {self.reward_ema}/{self.eval_reward_ema}, iteration: {iteration}, samples: {self._sample_count}"
 
 
-class DiscreteTrainer(DiscreteTrainerBase):
-    def __init__(self, env: Environment[int], trainer_config: TrainerConfig):
+class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
+    def __init__(self, env: Environment[ActionT], trainer_config: TrainerConfig):
         super().__init__(trainer_config)
         self._env = env
-        self._num_actions = trainer_config.num_actions
         self._policy = trainer_config.policy
         self._discount_factor = trainer_config.discount_factor
         self._evaluation_frequency = trainer_config.evaluation_frequency
+        self._action_type = trainer_config.action_type
 
         self._end_evaluation()
 
         self._reward_log_smoothing = trainer_config.reward_log_smoothing
-        self._maxlen = trainer_config.maxlen
+        self._maxlen = trainer_config.max_len
         self._t = 0
         self._episode_reward = 0.
         self._episode_score = 0.
@@ -173,11 +174,11 @@ class DiscreteOnlineTrainer(DiscreteTrainer):
             # noinspection PyUnresolvedReferences
             batch = Batch(
                 states=np.array(states, dtype=np.float32),
-                actions=np.array(actions, dtype=np.int32),
+                actions=np.array(actions, dtype=self._action_type),
                 intermediate_returns=np.array(rewards, dtype=np.float32),
                 bootstrap_weights=bootstrap_weights,
                 bootstrap_states=np.array(next_states, dtype=np.float32),
-                bootstrap_actions=np.array(next_actions, dtype=np.int32)
+                bootstrap_actions=np.array(next_actions, dtype=self._action_type)
             )
             trange.set_description(self.do_train(iteration, batch))
 
@@ -219,11 +220,11 @@ class DiscreteNstepTrainer(DiscreteTrainer):
         # noinspection PyUnresolvedReferences
         batch = Batch(
             states=np.array(states, dtype=np.float32),
-            actions=np.array(actions, dtype=np.int32),
+            actions=np.array(actions, dtype=self._action_type),
             intermediate_returns=np.array(intermediate_returns, dtype=np.float32),
             bootstrap_weights=np.array(bootstrap_weights, dtype=np.float32),
             bootstrap_states=np.array(bootstrap_states, dtype=np.float32),
-            bootstrap_actions=np.array(bootstrap_actions, dtype=np.int32)
+            bootstrap_actions=np.array(bootstrap_actions, dtype=self._action_type)
         )
         return batch
 
