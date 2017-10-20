@@ -52,7 +52,7 @@ class EnvWrapper:
         self._env = env
 
     def step(self, action):
-        action = np.clip(action, -10, 10)
+        #action = np.clip(action, -10, 10)
         next_state, reward, is_terminal, info = self._env.step(action)
         return next_state, reward, is_terminal, info
 
@@ -76,10 +76,10 @@ def _run():
     action_dim = env.action_space.shape[0]
     v_network = VNetwork(num_states)
     policy_network = PolicyNetwork(num_states, action_dim)
-    optimizer = torch.optim.RMSprop(list(v_network.parameters()) + list(policy_network.parameters()), lr=0.0001)
-    tdv = critic.value_td.ValueTD(v_network, target_update_rate=1)
+    optimizer = torch.optim.RMSprop(list(v_network.parameters()) + list(policy_network.parameters()), lr=0.001)
+    tdv = critic.value_td.ValueTD(v_network, target_update_rate=10)
     policy = policies.gaussian.SphericalGaussianPolicy(action_dim, policy_network, None, noise_sample_rate=1)
-    pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(policy, entropy_regularization=0)
+    pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(policy, entropy_regularization=0.01)
     config = trainers.online_trainer.TrainerConfig(
         action_type=np.float32,
         state_dim=num_states,
@@ -89,11 +89,13 @@ def _run():
         optimizer=optimizer,
         advantage_provider=critic.advantages.TDErrorAdvantageProvider(tdv),
         discount_factor=0.99,
+        gradient_clipping=10,
+        reward_clipping=[-1, 1],
         reward_log_smoothing=0.1
     )
-    trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 10, 64)
+    trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 4, 64)
     # trainer = trainers.online_trainer.DiscreteOnlineTrainer(env, config, batch_size=32)
-    trainer.train(100000)
+    trainer.train(1000000)
 
 
 if __name__ == '__main__':

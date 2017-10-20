@@ -3,6 +3,7 @@ from typing import Sequence, Optional
 import torch
 import torch.nn.functional
 import numpy as np
+import scipy.stats
 
 import policies.policy
 
@@ -39,6 +40,10 @@ class SphericalGaussianPolicy(policies.policy.Policy[np.ndarray]):
         stddev = np.exp(logstddev) + self._min_stddev
         mean = out[0, :self._action_dim]
         action = np.random.normal(mean, stddev)
+        # logpdfsum = scipy.stats.norm.logpdf(action, mean, stddev)
+        # print("====")
+        # print(action)
+        # print(logpdfsum)
 
         return action.astype(np.float32)
 
@@ -47,7 +52,10 @@ class SphericalGaussianPolicy(policies.policy.Policy[np.ndarray]):
         return self._network.parameters()
 
     def entropy(self, states: torch.autograd.Variable) -> torch.autograd.Variable:
-        NotImplementedError()
+        out = self._network(states)
+        logstddevs = out[:, self._action_dim:]
+        return (0.5 + np.log(np.sqrt(2*np.pi)).astype(np.float32))*self._action_dim + logstddevs.sum(dim=1)
+
 
     @property
     def _model(self) -> torch.nn.Module:

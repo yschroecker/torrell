@@ -33,6 +33,7 @@ class SimpleSharedNetwork(torch.nn.Module, metaclass=abc.ABCMeta):
         self._relu4 = torch.nn.ReLU()
 
         self._pi_out = torch.nn.Linear(num_linear, num_actions)
+        self._er_pi_out = torch.nn.Linear(num_linear, num_actions)
         torch.nn.init.normal(self._pi_out.weight, std=0.001)
         torch.nn.init.normal(self._pi_out.bias, std=0.001)
         self._v_out = torch.nn.Linear(num_linear, 1)
@@ -51,6 +52,9 @@ class SimpleSharedNetwork(torch.nn.Module, metaclass=abc.ABCMeta):
 
     def pi(self, states: torch_util.FloatTensor):
         return self._pi_out(self.shared(states))
+
+    def er_pi(self, states: torch_util.FloatTensor):
+        return f.log_softmax(self._er_pi_out(self.shared(states)))
 
     def d(self, states: torch_util.FloatTensor):
         return f.logsigmoid(self._d_out(self.shared(states)))
@@ -81,3 +85,12 @@ class DiscriminatorNetwork(torch.nn.Module):
 
     def forward(self, states: torch_util.FloatTensor):
         return self._shared.d(states)
+
+
+class MemoryNetwork(torch.nn.Module):
+    def __init__(self, shared: torch.nn.Module):
+        super().__init__()
+        self._shared = shared
+
+    def forward(self, states: torch_util.FloatTensor):
+        return self._shared.er_pi(states)

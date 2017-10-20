@@ -31,6 +31,7 @@ def _run():
     tdv = critic.value_td.ValueTD(experimental.erd.erd_shared.VNetwork(shared_network), target_update_rate=1)
     softmax_policy = policies.softmax.SoftmaxPolicy(experimental.erd.erd_shared.PolicyNetwork(shared_network))
     discriminator = experimental.erd.erd_shared.DiscriminatorNetwork(shared_network)
+    memory_policy = experimental.erd.erd_shared.MemoryNetwork(shared_network)
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
 
     num_samples = 30000000
@@ -47,8 +48,8 @@ def _run():
         visualization.global_summary_writer.add_image(f'state_{idx}', envs[idx].ale.getScreenRGB(), iteration)
 
     config = trainers.online_trainer.TrainerConfig(
-        num_actions=num_actions,
         state_dim=num_states,
+        action_type=np.int32,
         actor=pg,
         critic=tdv,
         policy=softmax_policy,
@@ -59,7 +60,7 @@ def _run():
         reward_log_smoothing=0.1,
         gradient_clipping=1,
         evaluation_frequency=1000,
-        maxlen=10000,
+        max_len=10000,
         hooks=[
             (100000, lambda iteration: torch.save(shared_network,
                                                   f"/home/yannick/breakout_policies/{iteration}")),
@@ -68,8 +69,8 @@ def _run():
         ]
     )
     # noinspection PyTypeChecker
-    trainer = experimental.erd.erd_trainer.ERDTrainer(25000, discriminator, 10000, envs, config, 5, batch_size,
-                                                      memory_rate=0.1)
+    trainer = experimental.erd.erd_trainer.ERDTrainer(25000, discriminator, memory_policy, 10000, envs, config, 5,
+                                                      batch_size, memory_rate=1)
     trainer.train(num_samples // batch_size)
 
 

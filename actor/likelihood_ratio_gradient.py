@@ -31,6 +31,7 @@ class LikelihoodRatioGradient:
         if self._entropy_regularization > 0:
             loss -= self._entropy_regularization * self._policy.entropy(states).mean()
 
+        # print(loss)
         loss.backward()
         if self._update_counter % self._grad_report_rate == 0:
             self._policy.visualize(self._update_counter)
