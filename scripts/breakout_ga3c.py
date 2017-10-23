@@ -46,7 +46,7 @@ def _run():
         visualization.global_summary_writer.add_image(f'state_{idx}', envs[idx].ale.getScreenRGB(), iteration)
 
     config = trainers.online_trainer.TrainerConfig(
-        num_actions=num_actions,
+        action_type=np.int32,
         state_dim=num_states,
         actor=pg,
         critic=tdv,
@@ -58,7 +58,7 @@ def _run():
         reward_log_smoothing=0.1,
         gradient_clipping=1,
         evaluation_frequency=1000,
-        maxlen=10000,
+        max_len=10000,
         hooks=[
             (100000, lambda iteration: torch.save(shared_network,
                                                   f"/home/yannick/breakout_policies/{iteration}")),
@@ -67,7 +67,7 @@ def _run():
         ]
     )
     # noinspection PyTypeChecker
-    trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 5, batch_size)
+    trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 4, batch_size)
     trainer.train(num_samples // batch_size)
 
 

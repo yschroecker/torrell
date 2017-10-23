@@ -1,5 +1,6 @@
 import time
 from typing import Sequence, Optional
+import random
 
 import numpy as np
 import torch
@@ -26,7 +27,8 @@ class ERDTrainer(DiscreteTrainerBase):
         self._memory_policy = memory_policy
         self._current_policy = trainer_config.policy
         self._buffers = trainers.ring_buffer.RingBufferCollection(
-            memory_size, [trainer_config.state_dim, 1, 1, 1, trainer_config.state_dim, 1],
+            memory_size, [trainer_config.state_dim, trainer_config.action_dim, 1, 1, trainer_config.state_dim,
+                          trainer_config.action_dim],
             dtypes=[np.float32, np.int32, np.float32, np.float32, np.float32, np.int32]
         )
         self._minimum_population = minimum_population
@@ -86,94 +88,69 @@ class ERDTrainer(DiscreteTrainerBase):
 
     def _do_updates(self, iteration: int, batch: Batch):
         super()._do_updates(iteration, batch)
-        if self._buffers.size >= self._minimum_population and iteration % self._sample_rate == 0:
+        if self._buffers.size > self._batch_size and iteration % self._sample_rate == 0:
             self._update_discriminator(iteration, batch)
-            self._update_memory_pi(iteration, batch)
+            # self._update_memory_pi(iteration, batch)
 
     def _train_new(self, iteration: int):
-        trainer_samples = [trainer.get_batch() for trainer in self._trainers]
-        samples = trainer_samples[0]
-        memorize = np.random.random() < self._memory_rate
-        for trainer_batch in trainer_samples[1:]:
+        samples = None
+        while samples is None or samples.states.shape[0] < self._batch_size:
+            trainer = random.choice(self._trainers)
+            trainer_batch = trainer.get_batch()
+            memorize = np.random.random() < self._memory_rate
             if memorize:
                 self._buffers.extend(
                     trainer_batch.states, trainer_batch.actions, trainer_batch.intermediate_returns,
                     trainer_batch.bootstrap_weights, trainer_batch.bootstrap_states,
                     trainer_batch.bootstrap_actions
                 )
-            samples = Batch(
-                np.concatenate((samples.states, trainer_batch.states)),
-                np.concatenate((samples.actions, trainer_batch.actions)),
-                np.concatenate((samples.intermediate_returns, trainer_batch.intermediate_returns)),
-                np.concatenate((samples.bootstrap_states, trainer_batch.bootstrap_states)),
-                np.concatenate((samples.bootstrap_actions, trainer_batch.bootstrap_actions)),
-                np.concatenate((samples.bootstrap_weights, trainer_batch.bootstrap_weights)),
-                None
-            )
-
-        indices = np.arange(samples.states.shape[0])
-        np.random.shuffle(indices)
-
-        for batch_start in range(0, samples.states.shape[0], self._batch_size):
-            batch_indices = indices[batch_start:batch_start + self._batch_size]
-            batch = Batch(
-                states=samples.states[batch_indices],
-                actions=samples.actions[batch_indices],
-                intermediate_returns=samples.intermediate_returns[batch_indices],
-                bootstrap_weights=samples.bootstrap_weights[batch_indices],
-                bootstrap_states=samples.bootstrap_states[batch_indices],
-                bootstrap_actions=samples.bootstrap_actions[batch_indices],
-            )
-            iteration += 1
-
-            self.reward_ema = self._trainers[0].reward_ema
-            self.eval_reward_ema = self._trainers[0].eval_reward_ema
-            if time.time() - self._last_print > 60:
-                print(f"iteration {iteration}, eval_score {self._trainers[0].eval_score_ema}")
-                self._last_print = time.time()
-            desc = self.do_train(iteration, batch)
-        return desc
+            if samples is None:
+                samples = trainer_batch
+            else:
+                samples = Batch(
+                    np.concatenate((samples.states, trainer_batch.states)),
+                    np.concatenate((samples.actions, trainer_batch.actions)),
+                    np.concatenate((samples.intermediate_returns, trainer_batch.intermediate_returns)),
+                    np.concatenate((samples.bootstrap_states, trainer_batch.bootstrap_states)),
+                    np.concatenate((samples.bootstrap_actions, trainer_batch.bootstrap_actions)),
+                    np.concatenate((samples.bootstrap_weights, trainer_batch.bootstrap_weights)),
+                    None
+                )
+        self.reward_ema = self._trainers[0].reward_ema
+        self.eval_reward_ema = self._trainers[0].eval_reward_ema
+        if time.time() - self._last_print > 60:
+            print(f"iteration {iteration}, eval_score {self._trainers[0].eval_score_ema}")
+            self._last_print = time.time()
+        return self.do_train(iteration, samples)
 
     def _train_memory(self, iteration):
-        memory_samples = self._buffers.sample(len(self._trainers) * self._batch_size)
-        importance_weights = self._get_importance_weights(memory_samples[0], memory_samples[1])
-        samples = Batch(
-            memory_samples[0],
-            memory_samples[1],
-            memory_samples[2],
-            memory_samples[3],
-            memory_samples[4],
-            importance_weights
+        states, actions, rewards, bootstrap_weights, next_states, next_actions = \
+            self._buffers.sample(self._batch_size)
+        importance_weights = self._get_importance_weights(states, actions.squeeze())
+
+        # noinspection PyUnresolvedReferences
+        batch = Batch(
+            states=states,
+            actions=actions.squeeze(),
+            intermediate_returns=rewards.squeeze(),
+            bootstrap_weights=bootstrap_weights.squeeze(),
+            bootstrap_states=next_states,
+            bootstrap_actions=next_actions.squeeze(),
+            importance_weights=importance_weights
         )
-        indices = np.arange(samples.states.shape[0])
-        np.random.shuffle(indices)
 
-        for batch_start in range(0, samples.states.shape[0], self._batch_size):
-            batch_indices = indices[batch_start:batch_start + self._batch_size]
-            batch = Batch(
-                states=samples.states[batch_indices],
-                actions=samples.actions[batch_indices],
-                intermediate_returns=samples.intermediate_returns[batch_indices],
-                bootstrap_weights=samples.bootstrap_weights[batch_indices],
-                bootstrap_states=samples.bootstrap_states[batch_indices],
-                bootstrap_actions=samples.bootstrap_actions[batch_indices],
-            )
-            iteration += 1
-
-            self.reward_ema = self._trainers[0].reward_ema
-            self.eval_reward_ema = self._trainers[0].eval_reward_ema
-            if time.time() - self._last_print > 60:
-                print(f"iteration {iteration}, eval_score {self._trainers[0].eval_score_ema}")
-                self._last_print = time.time()
-            desc = self.do_train(iteration, batch)
-        return desc
+        visualization.global_summary_writer.add_scalar('IW min', np.min(importance_weights), iteration)
+        visualization.global_summary_writer.add_scalar('IW max', np.max(importance_weights), iteration)
+        return self.do_train(iteration, batch)
 
     def train(self, num_iterations: int):
-        trange = tqdm.tqdm(total=num_iterations)
-        iteration = 0
-        while iteration < num_iterations:
-            self._train_new(iteration)
-            trange.set_description(trange.update(1))
+        trange = tqdm.trange(num_iterations)
+        for iteration in trange:
+            if iteration % self._sample_rate == 0 or self._buffers.size < self._minimum_population:
+                desc = self._train_new(iteration)
+            else:
+                desc = self._train_memory(iteration)
+            trange.set_description(desc)
 
     def _get_importance_weights(self, states: np.ndarray, actions: np.ndarray) -> Optional[np.ndarray]:
         states = states.astype(np.float32)
@@ -185,7 +162,9 @@ class ERDTrainer(DiscreteTrainerBase):
         actions_var = torch.autograd.Variable(actions_tensor, volatile=True)
 
         # pi_ratio
-        memory_probabilities = torch.exp(self._memory_policy(states_var).gather(dim=1, index=actions_var).squeeze())
+        memory_probabilities = torch.exp(self._memory_policy(states_var).gather(
+            dim=1, index=actions_var.unsqueeze(1)).squeeze()
+        )
         policy_probabilities = torch.exp(self._current_policy.log_probability(states_var, actions_var.squeeze()))
         action_weights_var = policy_probabilities/memory_probabilities
         action_weights_tensor = action_weights_var.data
@@ -200,7 +179,9 @@ class ERDTrainer(DiscreteTrainerBase):
             y_tensor = y_tensor.cpu()
         y = y_tensor.numpy()
         state_weights = 1 / np.exp(y) - 1
-        return state_weights * action_weights
+        # return np.ones((states.shape[0],), dtype=np.float32)
+        return state_weights
+        # return state_weights * action_weights
 
 
 class DiscreteExperienceReplayWithDiscriminator(DiscreteExperienceReplay):
