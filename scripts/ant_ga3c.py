@@ -75,9 +75,11 @@ def _run():
     num_states = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     v_network = VNetwork(num_states)
+    v_network.cuda()
     policy_network = PolicyNetwork(num_states, action_dim)
+    policy_network.cuda()
     optimizer = torch.optim.RMSprop(list(v_network.parameters()) + list(policy_network.parameters()), lr=0.001)
-    tdv = critic.value_td.ValueTD(v_network, target_update_rate=10)
+    tdv = critic.value_td.ValueTD(v_network, target_update_rate=1)
     policy = policies.gaussian.SphericalGaussianPolicy(action_dim, policy_network, None, noise_sample_rate=1)
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(policy, entropy_regularization=0.01)
     config = trainers.online_trainer.TrainerConfig(
@@ -90,7 +92,7 @@ def _run():
         advantage_provider=critic.advantages.TDErrorAdvantageProvider(tdv),
         discount_factor=0.99,
         gradient_clipping=10,
-        reward_clipping=[-1, 1],
+        # reward_clipping=[-1, 1],
         reward_log_smoothing=0.1
     )
     trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 4, 64)
