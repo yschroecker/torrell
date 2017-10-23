@@ -14,11 +14,6 @@ class AdvantageProvider(metaclass=abc.ABCMeta):
         pass
 
 
-class NoAdvantageProvider(AdvantageProvider):
-    def compute_advantages(self, batch: CriticBatch):
-        return None
-
-
 class TDErrorAdvantageProvider(AdvantageProvider):
     def __init__(self, td: critic.value_td.ValueTD):
         self._td = td

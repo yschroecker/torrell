@@ -56,10 +56,9 @@ class TemporalDifferenceBase(metaclass=abc.ABCMeta):
     def parameters(self) -> Sequence[torch.nn.Parameter]:
         return self._online_network.parameters()
 
-    def update(self, batch: Batch_):
+    def update_loss(self, batch: Batch_):
         loss = self._update(self.get_tensor_batch(batch))
         visualization.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
-        loss.backward()
         if self._update_counter % self._grad_report_rate == 0:
             for name, parameter in self._online_network.named_parameters():
                 if parameter.grad is not None:
@@ -77,6 +76,7 @@ class TemporalDifferenceBase(metaclass=abc.ABCMeta):
         self._update_counter += 1
         if self._update_counter % self._target_update_rate == 0:
             self._target_network = copy.deepcopy(self._online_network)
+        return loss
 
     def get_tensor_batch(self, batch: Batch_) -> TensorBatch:
         if batch is TensorBatch:

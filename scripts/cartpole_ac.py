@@ -10,6 +10,7 @@ import policies.softmax
 import critic.value_td
 import critic.advantages
 import actor.likelihood_ratio_gradient
+import algorithms.discrete_a2c
 
 
 class SharedNetwork(torch.nn.Module, metaclass=abc.ABCMeta):
@@ -57,24 +58,7 @@ def _run():
     shared_network = SharedNetwork(num_states, num_actions)
     v_network = VNetwork(shared_network)
     policy_network = PolicyNetwork(shared_network)
-    optimizer = torch.optim.RMSprop(shared_network.parameters(), lr=0.001)
-    tdv = critic.value_td.ValueTD(v_network, target_update_rate=1)
-    softmax_policy = policies.softmax.SoftmaxPolicy(policy_network)
-    pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0)
-    config = trainers.online_trainer.TrainerConfig(
-        num_actions=num_actions,
-        state_dim=num_states,
-        actor=pg,
-        critic=tdv,
-        policy=softmax_policy,
-        optimizer=optimizer,
-        advantage_provider=critic.advantages.TDErrorAdvantageProvider(tdv),
-        discount_factor=1,
-        reward_log_smoothing=0.1,
-        maxlen=200
-    )
-    trainer = trainers.online_trainer.DiscreteOnlineTrainer(env, config, batch_size=32)
-    trainer.train(10000)
+    algorithms.discrete_a2c.train(10000, env, num_states, v_network, policy_network, 0.001, 0.99, 32, 0.1, 200)
 
 
 if __name__ == '__main__':

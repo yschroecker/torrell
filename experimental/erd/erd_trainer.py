@@ -25,7 +25,7 @@ class ERDTrainer(DiscreteTrainerBase):
 
         self._discriminator = discriminator
         self._memory_policy = memory_policy
-        self._current_policy = trainer_config.policy
+        self._current_policy = trainer_config.policy_model
         self._buffers = trainers.ring_buffer.RingBufferCollection(
             memory_size, [trainer_config.state_dim, trainer_config.action_dim, 1, 1, trainer_config.state_dim,
                           trainer_config.action_dim],
@@ -168,14 +168,14 @@ class ERDTrainer(DiscreteTrainerBase):
         policy_probabilities = torch.exp(self._current_policy.log_probability(states_var, actions_var.squeeze()))
         action_weights_var = policy_probabilities/memory_probabilities
         action_weights_tensor = action_weights_var.data
-        if self._current_policy.cuda:
+        if self._current_policy.is_cuda:
             action_weights_tensor = action_weights_tensor.cpu()
         action_weights = action_weights_tensor.numpy()
 
         # d_ratio
         y_var = self._discriminator(states_var)
         y_tensor = y_var.squeeze().data
-        if self._current_policy.cuda:
+        if self._current_policy.is_cuda:
             y_tensor = y_tensor.cpu()
         y = y_tensor.numpy()
         state_weights = 1 / np.exp(y) - 1

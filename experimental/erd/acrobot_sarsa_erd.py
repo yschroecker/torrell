@@ -1,13 +1,14 @@
-import experimental.erd.erd_trainer
-import critic.advantages
-import actor.value
-import trainers.experience_replay
-import trainers.online_trainer
+import gym
 import torch
 import torch.nn.functional as f
+
+import critic.advantages
 import critic.value_td
+import experimental.erd.erd_trainer
+import policies.value
 import torch_util
-import gym
+import trainers.experience_replay
+import trainers.online_trainer
 
 
 class QNetwork(torch.nn.Module):
@@ -44,7 +45,7 @@ def _run():
     q_network.cuda()
     optimizer = torch.optim.RMSprop(q_network.parameters(), lr=1e-3)
     q_learner = critic.value_td.QValueTD(q_network, 100, gradient_clip=None)
-    policy = actor.value.EpsilonGreedy(num_actions, q_network, 1, 0, 0.0001)
+    policy = policies.value.EpsilonGreedy(num_actions, q_network, 1, 0, 0.0001)
     config = trainers.online_trainer.TrainerConfig(
         optimizer=optimizer,
         num_actions=num_actions,

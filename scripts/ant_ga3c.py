@@ -1,16 +1,12 @@
 import torch
 import torch.nn.functional as f
-import numpy as np
 import roboschool
 import gym
 
 import torch_util
-import trainers.online_trainer
-import trainers.synchronous
 import policies.gaussian
-import critic.value_td
-import critic.advantages
-import actor.likelihood_ratio_gradient
+import environments.environment
+import algorithms.ga3c
 
 
 class VNetwork(torch.nn.Module):
@@ -47,12 +43,11 @@ class PolicyNetwork(torch.nn.Module):
                           self._logstddev.expand([states.size(0), self._action_dim])], dim=1)
 
 
-class EnvWrapper:
+class EnvWrapper(environments.environment.Environment):
     def __init__(self, env):
         self._env = env
 
     def step(self, action):
-        #action = np.clip(action, -10, 10)
         next_state, reward, is_terminal, info = self._env.step(action)
         return next_state, reward, is_terminal, info
 
@@ -72,32 +67,27 @@ def _run():
     envs = [EnvWrapper(gym.make("RoboschoolAnt-v1")) for _ in range(16)]
     env = envs[0]
     # env = gym.wrappers.Monitor(env, "/tmp/", force=True)
-    num_states = env.observation_space.shape[0]
+    state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
-    v_network = VNetwork(num_states)
+    v_network = VNetwork(state_dim)
     v_network.cuda()
-    policy_network = PolicyNetwork(num_states, action_dim)
+    policy_network = PolicyNetwork(state_dim, action_dim)
     policy_network.cuda()
-    optimizer = torch.optim.RMSprop(list(v_network.parameters()) + list(policy_network.parameters()), lr=0.001)
-    tdv = critic.value_td.ValueTD(v_network, target_update_rate=1)
-    policy = policies.gaussian.SphericalGaussianPolicy(action_dim, policy_network, None, noise_sample_rate=1)
-    pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(policy, entropy_regularization=0.01)
-    config = trainers.online_trainer.TrainerConfig(
-        action_type=np.float32,
-        state_dim=num_states,
-        actor=pg,
-        critic=tdv,
-        policy=policy,
-        optimizer=optimizer,
-        advantage_provider=critic.advantages.TDErrorAdvantageProvider(tdv),
+    policy_model = policies.gaussian.SphericalGaussianPolicyModel(action_dim, policy_network, None)
+    algorithms.ga3c.train(
+        num_iterations=1000000,
+        envs=envs,
+        state_dim=state_dim,
+        value_network=v_network,
+        policy_model=policy_model,
+        policy_builder=policies.gaussian.SphericalGaussianPolicy,
+        learning_rate=0.001,
         discount_factor=0.99,
+        look_ahead=4,
+        batch_size=64,
+        entropy_regularization=0.01,
         gradient_clipping=10,
-        # reward_clipping=[-1, 1],
-        reward_log_smoothing=0.1
-    )
-    trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 4, 64)
-    # trainer = trainers.online_trainer.DiscreteOnlineTrainer(env, config, batch_size=32)
-    trainer.train(1000000)
+        reward_log_smoothing=0.1)
 
 
 if __name__ == '__main__':

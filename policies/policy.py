@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar, Sequence
+from typing import Generic, TypeVar, Sequence, Type
 import abc
 
 import torch
@@ -10,7 +10,7 @@ import visualization
 ActionT = TypeVar('ActionT')
 
 
-class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
+class PolicyModel(Generic[ActionT], metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def log_probability(self, states: torch.autograd.Variable, actions: torch.autograd.Variable) -> \
             torch.autograd.Variable:
@@ -20,18 +20,14 @@ class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
     def entropy(self, states: torch.autograd.Variable) -> torch.autograd.Variable:
         pass
 
+    @property
     @abc.abstractmethod
-    def _sample(self, state: torch.autograd.Variable, t: int, training: bool) -> ActionT:
+    def _module(self) -> torch.nn.Module:
         pass
 
     @property
-    @abc.abstractmethod
-    def _model(self) -> torch.nn.Module:
-        pass
-
-    @property
-    def cuda(self) -> bool:
-        return torch_util.module_is_cuda(self._model)
+    def is_cuda(self) -> bool:
+        return torch_util.module_is_cuda(self._module)
 
     @property
     @abc.abstractmethod
@@ -39,7 +35,7 @@ class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
         pass
 
     def visualize(self, counter):
-        for name, parameter in self._model.named_parameters():
+        for name, parameter in self._module.named_parameters():
             if parameter.grad is not None:
                 visualization.global_summary_writer.add_histogram(
                     f'pi ({name})', parameter.data.cpu().numpy(), counter
@@ -48,9 +44,26 @@ class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
                     f'pi {name}_grad', parameter.grad.data.cpu().numpy(), counter
                 )
 
+    @property
+    @abc.abstractmethod
+    def action_type(self) -> Type[np.dtype]:
+        pass
+
+
+class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
+    @property
+    @abc.abstractmethod
+    def _model(self) -> PolicyModel:
+        pass
+
+    @abc.abstractmethod
+    def _sample(self, state: torch.autograd.Variable, t: int, training: bool) -> ActionT:
+        pass
+
     def sample(self, state: np.ndarray, t: int, training: bool=False) -> ActionT:
         state_tensor = torch.from_numpy(np.array([state])).type(
-            torch.cuda.FloatTensor if torch_util.module_is_cuda(self._model) else torch.FloatTensor)
+            torch.cuda.FloatTensor if self._model.is_cuda else torch.FloatTensor
+        )
         state_var = torch.autograd.Variable(state_tensor, volatile=True)
         return self._sample(state_var, t, training)
 

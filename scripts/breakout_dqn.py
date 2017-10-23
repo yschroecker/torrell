@@ -11,7 +11,7 @@ def _run():
         env.image_width, env.image_height, env.history_length, num_actions
     )
     q_network.cuda()
-    algorithms.dqn.dqn(
+    algorithms.dqn.train(
         env=env,
         q_network=q_network,
         state_dim=num_states,

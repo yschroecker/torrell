@@ -8,37 +8,28 @@ import numpy as np
 from actor.actor_base import Actor
 from environments.environment import Environment, ActionT
 from critic.temporal_difference import TemporalDifferenceBase, Batch
-from critic.advantages import AdvantageProvider
-from policies.policy import Policy
+from optimization_strategies.optimization_strategy import OptimizationStrategy
+from policies.policy import PolicyModel, Policy
 import visualization
 
 
 class TrainerConfig(NamedTuple):
-    action_type: Type[np.dtype]
     state_dim: int
-    actor: Actor
-    critic: TemporalDifferenceBase
-    policy: Policy[int]
-    advantage_provider: AdvantageProvider
+    optimization_strategy: OptimizationStrategy
+    policy_model: PolicyModel[int]
+    policy_builder: Callable[[PolicyModel], Policy]
     discount_factor: float
     reward_log_smoothing: float
-    optimizer: torch.optim.Optimizer
     action_dim: int = 1
     reward_clipping: Tuple[float, float] = (-np.float('inf'), np.float('inf'))
     max_len: int = -1
     evaluation_frequency: int = -1
-    gradient_clipping: float = None
     hooks: Sequence[Tuple[int, Callable[[int], None]]] = []
 
 
 class DiscreteTrainerBase:
     def __init__(self, trainer_config: TrainerConfig):
-        self._actor = trainer_config.actor
-        self._policy = trainer_config.policy
-        self._critic = trainer_config.critic
-        self._advantage_provider = trainer_config.advantage_provider
-        self._optimizer = trainer_config.optimizer
-        self._gradient_clipping = trainer_config.gradient_clipping
+        self._optimization_strategy = trainer_config.optimization_strategy
         self._reward_clipping = trainer_config.reward_clipping
 
         self.reward_ema = 0
@@ -47,25 +38,12 @@ class DiscreteTrainerBase:
         self._sample_count = 0
         self._hooks = trainer_config.hooks
 
-    def _do_updates(self, iteration: int, batch: Batch):
-        self._critic.update(batch)
-        self._actor.update(self._advantage_provider.compute_advantages(self._critic.get_tensor_batch(batch)))
-
     def do_train(self, iteration: int, batch: Batch) -> str:
         for hook_iter, hook in self._hooks:
             if iteration % hook_iter == 0:
                 hook(iteration)
-        self._optimizer.zero_grad()
-        self._do_updates(iteration, batch)
         self._sample_count += batch.states.shape[0]
-        if self._gradient_clipping is not None:
-            # noinspection PyTypeChecker
-            torch.nn.utils.clip_grad_norm(self._critic.parameters, self._gradient_clipping, 'inf')
-            # noinspection PyTypeChecker
-            torch.nn.utils.clip_grad_norm(self._policy.parameters, self._gradient_clipping, 'inf')
-        visualization.global_summary_writer.add_scalar('LR', self._optimizer.param_groups[0]['lr'], iteration)
-        # noinspection PyArgumentList
-        self._optimizer.step()
+        self._optimization_strategy.iterate(iteration, batch)
         return f"r: {self.reward_ema}/{self.eval_reward_ema}, iteration: {iteration}, samples: {self._sample_count}"
 
 
@@ -73,10 +51,10 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
     def __init__(self, env: Environment[ActionT], trainer_config: TrainerConfig):
         super().__init__(trainer_config)
         self._env = env
-        self._policy = trainer_config.policy
+        self._policy = trainer_config.policy_builder(trainer_config.policy_model)
         self._discount_factor = trainer_config.discount_factor
         self._evaluation_frequency = trainer_config.evaluation_frequency
-        self._action_type = trainer_config.action_type
+        self._action_type = trainer_config.policy_model.action_type
 
         self._end_evaluation()
 
@@ -98,7 +76,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         self._evaluation_mode = True
         self._env.treat_life_lost_as_terminal = False  # TODO: refactor!!!
 
-    def _choose_action(self, state: np.ndarray, t: int) -> int:
+    def _choose_action(self, state: np.ndarray, t: int) -> ActionT:
         return self._policy.sample(state, t, not self._evaluation_mode)
 
     def collect_transitions(self, num_steps: int):
