@@ -28,8 +28,8 @@ class TDErrorAdvantageProvider(AdvantageProvider):
         bootstrap_states = torch.autograd.Variable(batch.bootstrap_states, volatile=True)
         intermediate_rewards = torch.autograd.Variable(batch.intermediate_returns, volatile=True)
         bootstrap_weights = torch.autograd.Variable(batch.bootstrap_weights, volatile=True)
-        is_terminal = (bootstrap_weights > 1e-5).type(torch.FloatTensor)  # TODO: refactor!!!
+        # is_terminal = (bootstrap_weights > 1e-5).type(torch.FloatTensor)  # TODO: refactor!!!
 
         advantages = (intermediate_rewards + bootstrap_weights * self._td.values(bootstrap_states) - \
-                      self._td.values(states)) * is_terminal
+                      self._td.values(states)) # * is_terminal
         return ActorBatch(states=batch.states, actions=batch.actions, advantages=advantages.data)

@@ -1,8 +1,8 @@
 import time
 from typing import Sequence
+import random
 
 import numpy as np
-import random
 import tqdm
 
 from critic.temporal_difference import Batch
