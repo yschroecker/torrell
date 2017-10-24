@@ -1,4 +1,4 @@
-from typing import Any, Sequence, Callable
+from typing import Any, Sequence, Callable, Type
 
 import torch
 import numpy as np
@@ -30,6 +30,10 @@ class ValuePolicyModel(policies.policy.PolicyModel[int]):
     @property
     def parameters(self) -> Sequence[torch.nn.Parameter]:
         return []
+
+    @property
+    def action_type(self) -> Type[np.dtype]:
+        return np.int32
 
 
 class EpsilonGreedy(policies.policy.Policy[int]):

@@ -33,7 +33,7 @@ def _run():
 
     optimizer = torch.optim.RMSprop(shared_network.parameters(), lr=7e-4, eps=0.1)
     tdv = critic.value_td.ValueTD(experimental.erd.erd_shared.VNetwork(shared_network), target_update_rate=1)
-    softmax_policy = policies.softmax.SoftmaxPolicy(experimental.erd.erd_shared.PolicyNetwork(shared_network))
+    softmax_policy = policies.softmax.SoftmaxPolicyModel(experimental.erd.erd_shared.PolicyNetwork(shared_network))
     discriminator = experimental.erd.erd_shared.DiscriminatorNetwork(shared_network)
     memory_policy = experimental.erd.erd_shared.MemoryNetwork(shared_network)
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
@@ -53,7 +53,6 @@ def _run():
 
     config = trainers.online_trainer.TrainerConfig(
         state_dim=num_states,
-        action_type=np.int32,
         actor=pg,
         critic=tdv,
         policy=softmax_policy,
@@ -72,7 +71,7 @@ def _run():
             # (1, lambda _: scheduler.step())
         ]
     )
-    trainer = experimental.erd.erd_trainer.ERDTrainer(100000, discriminator, memory_policy, 10000, envs, config, 5, 
+    trainer = experimental.erd.erd_trainer.ERDTrainer(50000, discriminator, memory_policy, 10000, envs, config, 5,
                                                       batch_size, memory_rate=0.05)
     trainer.train(num_samples // batch_size)
 

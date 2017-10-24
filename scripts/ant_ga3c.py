@@ -85,7 +85,7 @@ def _run():
         discount_factor=0.99,
         look_ahead=4,
         batch_size=64,
-        entropy_regularization=0.01,
+        entropy_regularization=0.1,
         gradient_clipping=10,
         reward_log_smoothing=0.1)
 

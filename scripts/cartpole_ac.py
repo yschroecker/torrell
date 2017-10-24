@@ -58,7 +58,18 @@ def _run():
     shared_network = SharedNetwork(num_states, num_actions)
     v_network = VNetwork(shared_network)
     policy_network = PolicyNetwork(shared_network)
-    algorithms.discrete_a2c.train(10000, env, num_states, v_network, policy_network, 0.001, 0.99, 32, 0.1, 200)
+    algorithms.discrete_a2c.train(
+        num_iterations=10000,
+        env=env,
+        state_dim=num_states,
+        value_network=v_network,
+        policy_network=policy_network,
+        learning_rate=0.001,
+        discount_factor=0.99,
+        batch_size=32,
+        reward_log_smoothing=0.1,
+        max_len=200
+    )
 
 
 if __name__ == '__main__':
