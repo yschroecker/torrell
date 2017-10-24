@@ -35,11 +35,11 @@ def _run():
     tdv = critic.value_td.ValueTD(experimental.erd.erd_shared.VNetwork(shared_network), target_update_rate=1)
     softmax_policy = policies.softmax.SoftmaxPolicy(experimental.erd.erd_shared.PolicyNetwork(shared_network))
     discriminator = experimental.erd.erd_shared.DiscriminatorNetwork(shared_network)
-    memory_policy = experimental.erd.erd_shared.MemoryNetwork(shared_network2)
+    memory_policy = experimental.erd.erd_shared.MemoryNetwork(shared_network)
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
 
     num_samples = 30000000
-    batch_size = 32
+    batch_size = 64
     # scheduler = torch.optim.lr_scheduler.LambdaLR(
     # optimizer, lambda iteration: 1 - iteration * batch_size / num_samples
     # )

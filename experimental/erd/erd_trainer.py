@@ -40,6 +40,7 @@ class ERDTrainer(DiscreteTrainerBase):
         self._memory_rate = memory_rate
         self._last_print = 0
         self._sample_rate = 4
+        self._last_new_batch = None
 
     def _update_memory_pi(self, iteration: int, batch: Batch):
         memory_samples = self._buffers.sample(batch.states.shape[0])
@@ -88,9 +89,14 @@ class ERDTrainer(DiscreteTrainerBase):
 
     def _do_updates(self, iteration: int, batch: Batch):
         super()._do_updates(iteration, batch)
-        if self._buffers.size > self._batch_size and iteration % self._sample_rate == 0:
-            self._update_discriminator(iteration, batch)
-            # self._update_memory_pi(iteration, batch)
+        if self._buffers.size > self._batch_size:
+            if iteration % self._sample_rate == 0:
+                self._last_new_batch = batch
+                self._update_discriminator(iteration, batch)
+                self._update_memory_pi(iteration, batch)
+            elif self._last_new_batch is not None:
+                self._update_discriminator(iteration, self._last_new_batch)
+                self._update_memory_pi(iteration, self._last_new_batch)
 
     def _train_new(self, iteration: int):
         samples = None
@@ -165,7 +171,8 @@ class ERDTrainer(DiscreteTrainerBase):
         memory_probabilities = torch.exp(self._memory_policy(states_var).gather(
             dim=1, index=actions_var.unsqueeze(1)).squeeze()
         )
-        policy_probabilities = torch.exp(self._current_policy.log_probability(states_var, actions_var.squeeze()))
+        policy_probabilities = torch.exp(self._current_policy.log_probability(states_var,
+            actions_var.squeeze())).squeeze()
         action_weights_var = policy_probabilities/memory_probabilities
         action_weights_tensor = action_weights_var.data
         if self._current_policy.is_cuda:
@@ -180,8 +187,11 @@ class ERDTrainer(DiscreteTrainerBase):
         y = y_tensor.numpy()
         state_weights = 1 / np.exp(y) - 1
         # return np.ones((states.shape[0],), dtype=np.float32)
-        return state_weights
-        # return state_weights * action_weights
+        # return state_weights
+        weights = state_weights * action_weights
+        weights = np.maximum(weights, 1)
+        weights = weights/np.sum(weights) * len(weights)
+        return weights
 
 
 class DiscreteExperienceReplayWithDiscriminator(DiscreteExperienceReplay):
