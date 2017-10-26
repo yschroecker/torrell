@@ -25,7 +25,7 @@ def _run():
     num_actions = env.action_space.n
     q_network = QNetwork(num_states, num_actions)
     q_network.cuda()
-    algorithms.dqn.dqn(
+    algorithms.dqn.train(
         env=env,
         q_network=q_network,
         state_dim=num_states,

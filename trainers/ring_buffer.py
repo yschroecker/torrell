@@ -1,9 +1,61 @@
 import numpy as np
 import os
 import pickle
+import collections
 
 
-class RingBuffer:
+class RingBufferBase:
+    pass
+
+
+class DequeRingBuffer:
+    def __init__(self, capacity, _, dtype=np.float32):
+        self._ringbuffer = collections.deque(maxlen=capacity)
+        self._dtype = dtype
+
+    @property
+    def size(self):
+        return len(self._ringbuffer)
+
+    def append(self, elem):
+        self._ringbuffer.append(elem)
+
+    def extend(self, elements):
+        self._ringbuffer.extend(elements)
+
+    def sample(self, num_samples):
+        return np.random.choice(self._ringbuffer, size=num_samples, replace=False)
+
+    def to_array(self):
+        return np.array(self._ringbuffer)
+
+    def save(self, dir_path, name):
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+
+        with open(dir_path + '/ringbuffers_' + name, 'wb') as f:
+            pickle.dump(self._ringbuffer, f)
+
+    @classmethod
+    def load(cls, dir_path, name):
+        ring_buffer = cls.__new__(cls)
+        with open(dir_path + '/ringbuffers_' + name, 'rb') as f:
+            ring_buffer._ringbuffer = pickle.load(f)
+
+        return ring_buffer
+
+    def __getitem__(self, item):
+        if type(item[0]) is slice:
+            return list(self._ringbuffer)[item[0]]
+        else:
+            assert type(item[1]) is slice and item[1].start is None and item[1].stop is None and item[1].step is None
+            return np.array([self._ringbuffer[i % self.size] for i in item[0]], dtype=self._dtype)
+
+    def __repr__(self):
+        return self._ringbuffer.__repr__()
+
+
+class ArrayRingBuffer:
     def __init__(self, capacity, element_dim, dtype=np.float32):
         self._use_disk = False
         self._ringbuffer = np.zeros(np.hstack([capacity, element_dim]), dtype=dtype)
@@ -72,11 +124,14 @@ class RingBuffer:
         return self._ringbuffer.__repr__()
 
 
+RingBuffer = DequeRingBuffer
+
+
 class RingBufferCollection:
     def __init__(self, capacity, element_dims, dtypes=None):
         if dtypes is None:
             dtypes = [np.float32] * len(element_dims)
-        self._buffers = [RingBuffer(capacity, element_dim, dtype=dtype)
+        self._buffers = [RingBuffer(capacity, element_dim, dtype)
                          for dtype, element_dim in zip(dtypes, element_dims)]
         self.size = 0
         self._capacity = capacity

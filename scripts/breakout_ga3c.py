@@ -12,6 +12,7 @@ import trainers.online_trainer
 import trainers.synchronous
 import policies.softmax
 import visualization
+import optimization_strategies.simultaneous_gradient_descent
 
 
 def _run():
@@ -29,7 +30,7 @@ def _run():
 
     optimizer = torch.optim.RMSprop(shared_network.parameters(), lr=7e-4, eps=0.1)
     tdv = critic.value_td.ValueTD(networks.simple_shared.VNetwork(shared_network), target_update_rate=1)
-    softmax_policy = policies.softmax.SoftmaxPolicy(networks.simple_shared.PolicyNetwork(shared_network))
+    softmax_policy = policies.softmax.SoftmaxPolicyModel(networks.simple_shared.PolicyNetwork(shared_network))
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
 
     num_samples = 30000000
@@ -45,18 +46,18 @@ def _run():
         idx = np.random.choice(16)
         visualization.global_summary_writer.add_image(f'state_{idx}', envs[idx].ale.getScreenRGB(), iteration)
 
+    strategy = optimization_strategies.simultaneous_gradient_descent.SimultaneousGradientDescent(
+        optimizer, pg, tdv, critic.advantages.TDErrorAdvantageProvider(tdv), gradient_clipping=1,
+    )
+
     config = trainers.online_trainer.TrainerConfig(
-        action_type=np.int32,
         state_dim=num_states,
-        actor=pg,
-        critic=tdv,
-        policy=softmax_policy,
-        optimizer=optimizer,
-        advantage_provider=critic.advantages.TDErrorAdvantageProvider(tdv),
+        optimization_strategy=strategy,
+        policy_model=softmax_policy,
+        policy_builder=policies.softmax.SoftmaxPolicy,
         reward_clipping=[-1, 1],
         discount_factor=0.99,
         reward_log_smoothing=0.1,
-        gradient_clipping=1,
         evaluation_frequency=1000,
         max_len=10000,
         hooks=[
