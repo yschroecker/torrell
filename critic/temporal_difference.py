@@ -1,4 +1,4 @@
-from typing import Optional, NamedTuple, Union, Sequence
+from typing import Optional, NamedTuple, Union, Sequence, List
 import abc
 import copy
 
@@ -20,18 +20,26 @@ class TensorBatch(NamedTuple):
 
 
 class Batch(NamedTuple):
-    states: np.ndarray
+    states: Union[np.ndarray, List[np.ndarray]]
     actions: np.ndarray
     intermediate_returns: np.ndarray
-    bootstrap_states: np.ndarray
+    bootstrap_states: Union[np.ndarray, List[np.ndarray]]
     bootstrap_actions: np.ndarray
     bootstrap_weights: np.ndarray
     importance_weights: Optional[np.ndarray] = None
 
     def to_tensor(self, use_cuda: bool) -> TensorBatch:
-        return TensorBatch(*torch_util.load_inputs(use_cuda, self.states, self.actions, self.intermediate_returns,
-                                                   self.bootstrap_states, self.bootstrap_actions,
-                                                   self.bootstrap_weights),
+        if type(self.states) is list:
+            states = np.array(self.states)
+        else:
+            states = self.states
+        if type(self.bootstrap_states) is list:
+            bootstrap_states = np.array(self.bootstrap_states)
+        else:
+            bootstrap_states = self.bootstrap_states
+
+        return TensorBatch(*torch_util.load_inputs(use_cuda, states, self.actions, self.intermediate_returns,
+                                                   bootstrap_states, self.bootstrap_actions, self.bootstrap_weights),
                            torch_util.load_input(
                                use_cuda, np.ones_like(self.intermediate_returns)
                                if self.importance_weights is None else self.importance_weights))

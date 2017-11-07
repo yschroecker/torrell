@@ -1,4 +1,4 @@
-from typing import Type, Tuple, NamedTuple, Sequence, Callable, Generic
+from typing import Any, Type, Tuple, NamedTuple, Sequence, Callable, Generic
 
 import torch.optim
 import torch.optim.lr_scheduler
@@ -79,7 +79,8 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
     def _choose_action(self, state: np.ndarray, t: int) -> ActionT:
         return self._policy.sample(state, t, not self._evaluation_mode)
 
-    def collect_transitions(self, num_steps: int):
+    def collect_transitions(self, num_steps: int) -> \
+            Tuple[Sequence[Any], Sequence[ActionT], Sequence[float], Sequence[float], Sequence[Any], Sequence[ActionT]]:
         states = []
         actions = []
         rewards = []
@@ -198,11 +199,11 @@ class DiscreteNstepTrainer(DiscreteTrainer):
 
         # noinspection PyUnresolvedReferences
         batch = Batch(
-            states=np.array(states, dtype=np.float32),
+            states=[np.array(state, dtype=np.float32) for state in states],
             actions=np.array(actions, dtype=self._action_type),
             intermediate_returns=np.array(intermediate_returns, dtype=np.float32),
             bootstrap_weights=np.array(bootstrap_weights, dtype=np.float32),
-            bootstrap_states=np.array(bootstrap_states, dtype=np.float32),
+            bootstrap_states=[np.array(bootstrap_state, dtype=np.float32) for bootstrap_state in bootstrap_states],
             bootstrap_actions=np.array(bootstrap_actions, dtype=self._action_type)
         )
         return batch
