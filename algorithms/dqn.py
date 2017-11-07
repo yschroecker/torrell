@@ -1,7 +1,6 @@
 from typing import Optional
 
 import torch
-import numpy as np
 
 import policies.value
 import trainers.experience_replay
@@ -18,7 +17,7 @@ def train(num_iterations: int, env: Environment[int], q_network: torch.nn.Module
           evaluation_frequency: int=-1, double_q: bool=False):
     optimizer = torch.optim.RMSprop(q_network.parameters(), lr=lr)
     q_learner_type = DiscreteDoubleQLearning if double_q else DiscreteQLearning
-    q_learner = q_learner_type(q_network, target_update_rate, gradient_clip=gradient_clip)
+    q_learner = q_learner_type(q_network, target_update_rate)
     policy_model = policies.value.ValuePolicyModel(num_actions, q_network)
     strategy = optimization_strategies.critic_only.CriticOnly(optimizer, q_learner, gradient_clip)
     config = trainers.online_trainer.TrainerConfig(

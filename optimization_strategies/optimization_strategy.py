@@ -3,13 +3,13 @@ import abc
 
 import torch
 
-from critic.temporal_difference import Batch
 import visualization
+import data
 
 
 class OptimizationStrategy(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def iterate(self, iteration: int, batch: Batch):
+    def iterate(self, iteration: int, batch: data.Batch[data.TensorRLTransitionSequence]):
         pass
 
 
@@ -21,11 +21,11 @@ class GradientDescentStrategy(OptimizationStrategy, metaclass=abc.ABCMeta):
         self._clip_norm = clip_norm
 
     @abc.abstractmethod
-    def _targets(self, iteration: int, batch: Batch) -> Tuple[Sequence[torch.autograd.Variable],
-                                                              Sequence[Sequence[torch.nn.Parameter]]]:
+    def _targets(self, iteration: int, batch: data.Batch[data.TensorRLTransitionSequence]) -> \
+            Tuple[Sequence[torch.autograd.Variable], Sequence[Sequence[torch.nn.Parameter]]]:
         pass
 
-    def iterate(self, iteration: int, batch: Batch):
+    def iterate(self, iteration: int, batch: data.Batch[data.TensorRLTransitionSequence]):
         self._optimizer.zero_grad()
         losses, parameters = self._targets(iteration, batch)
         for loss in losses:

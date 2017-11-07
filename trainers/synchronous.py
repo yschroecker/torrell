@@ -5,9 +5,9 @@ import random
 import numpy as np
 import tqdm
 
-from critic.temporal_difference import Batch
 from environments.environment import Environment
 from trainers.online_trainer import DiscreteNstepTrainer, DiscreteTrainerBase, TrainerConfig
+import data
 
 
 class SynchronizedDiscreteNstepTrainer(DiscreteTrainerBase):
@@ -20,27 +20,20 @@ class SynchronizedDiscreteNstepTrainer(DiscreteTrainerBase):
             else trainer_config._replace(evaluation_frequency=0), look_ahead) for i, env in enumerate(envs)]
         self._batch_size = batch_size
         self._last_print = 0
+        self._look_ahead = look_ahead
         assert batch_size % look_ahead == 0
 
     def train(self, num_iterations: int):
         trange = tqdm.trange(num_iterations)
         for iteration in trange:
             samples = None
-            while samples is None or samples.states.shape[0] < self._batch_size:
+            while samples is None or sum(len(sequence.rewards) for sequence in samples.sequences) < self._batch_size:
                 trainer = random.choice(self._trainers)
-                trainer_batch = trainer.get_batch()
+                trainer_batch = trainer.collect_sequence(self._look_ahead)
                 if samples is None:
-                    samples = trainer_batch
+                    samples = data.Batch([trainer_batch])
                 else:
-                    samples = Batch(
-                        np.concatenate((samples.states, trainer_batch.states)),
-                        np.concatenate((samples.actions, trainer_batch.actions)),
-                        np.concatenate((samples.intermediate_returns, trainer_batch.intermediate_returns)),
-                        np.concatenate((samples.bootstrap_states, trainer_batch.bootstrap_states)),
-                        np.concatenate((samples.bootstrap_actions, trainer_batch.bootstrap_actions)),
-                        np.concatenate((samples.bootstrap_weights, trainer_batch.bootstrap_weights)),
-                        None
-                    )
+                    samples = data.Batch(samples.sequences + [trainer_batch])
             self.reward_ema = self._trainers[0].reward_ema
             self.eval_reward_ema = self._trainers[0].eval_reward_ema
             trange.set_description(self.do_train(iteration, samples))

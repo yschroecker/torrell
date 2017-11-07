@@ -3,9 +3,10 @@ from typing import Any, Union, Tuple, Sequence
 import torch
 
 from optimization_strategies.optimization_strategy import GradientDescentStrategy
-from critic.temporal_difference import Batch, TemporalDifferenceBase
+from critic.temporal_difference import TemporalDifferenceBase
 from critic.advantages import AdvantageProvider
 from actor.actor_base import Actor
+import data
 
 
 class SimultaneousGradientDescent(GradientDescentStrategy):
@@ -17,8 +18,8 @@ class SimultaneousGradientDescent(GradientDescentStrategy):
         self._critic = critic
         self._advantage_provider = advantage_provider
 
-    def _targets(self, _: Any, batch: Batch) -> Tuple[Sequence[torch.autograd.Variable],
-                                                      Sequence[Sequence[torch.nn.Parameter]]]:
+    def _targets(self, _: Any, batch: data.Batch[data.RLTransitionSequence]) -> \
+            Tuple[Sequence[torch.autograd.Variable], Sequence[Sequence[torch.nn.Parameter]]]:
         critic_loss = self._critic.update_loss(batch)
         advantage_batch = self._advantage_provider.compute_advantages(self._critic.get_tensor_batch(batch))
         actor_loss = self._actor.update_loss(advantage_batch)

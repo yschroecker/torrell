@@ -4,13 +4,13 @@ import abc
 import torch
 
 import critic.temporal_difference
+import data
 import visualization
 
 
 class DiscreteQLearningBase(critic.temporal_difference.TemporalDifferenceBase, metaclass=abc.ABCMeta):
-    def __init__(self, model: torch.nn.Module, target_update_rate: int,
-                 gradient_clip: Optional[float]=None, grad_report_rate: int=1000):
-        super().__init__(model, target_update_rate, gradient_clip, grad_report_rate)
+    def __init__(self, model: torch.nn.Module, target_update_rate: int, grad_report_rate: int=1000):
+        super().__init__(model, target_update_rate, grad_report_rate)
         self._loss_fn = torch.nn.MSELoss()
 
     @abc.abstractmethod
@@ -19,12 +19,12 @@ class DiscreteQLearningBase(critic.temporal_difference.TemporalDifferenceBase, m
                        bootstrap_states: torch.autograd.Variable) -> torch.autograd.Variable:
         pass
 
-    def _update(self, batch: critic.temporal_difference.TensorBatch) -> torch.autograd.Variable:
-        states = torch.autograd.Variable(batch.states, requires_grad=False)
-        actions = torch.autograd.Variable(batch.actions, requires_grad=False)
-        intermediate_returns = torch.autograd.Variable(batch.intermediate_returns, requires_grad=False)
-        bootstrap_weights = torch.autograd.Variable(batch.bootstrap_weights, requires_grad=False)
-        bootstrap_states = torch.autograd.Variable(batch.bootstrap_states, volatile=True)
+    def _update(self, batch: data.Batch[data.TensorRLTransitionSequence]) -> torch.autograd.Variable:
+        states = torch.autograd.Variable(batch.states(), requires_grad=False)
+        actions = torch.autograd.Variable(batch.actions(), requires_grad=False)
+        intermediate_returns = torch.autograd.Variable(batch.intermediate_returns(), requires_grad=False)
+        bootstrap_weights = torch.autograd.Variable(batch.bootstrap_weights(), requires_grad=False)
+        bootstrap_states = torch.autograd.Variable(batch.bootstrap_states(), volatile=True)
 
         q_values_o = self._online_network(states)
         values_o = q_values_o.gather(dim=1, index=actions.unsqueeze(1))
