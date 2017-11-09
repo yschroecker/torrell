@@ -65,6 +65,8 @@ class Tabular:
         for value, vector in zip(values, vectors.T):
             # noinspection PyTypeChecker
             if np.isclose(value, 1):
+                if np.max(vector) <= 0:
+                    vector *= -1
                 if np.min(vector) < 0:
                     vector -= np.min(vector)
                 return np.real(vector / np.sum(vector))
