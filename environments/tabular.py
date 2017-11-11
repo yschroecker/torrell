@@ -16,10 +16,10 @@ class Tabular:
         self.transition_matrix = transition_matrix
         self._reward_matrix = reward_matrix
         self.terminal_states = terminal_states.astype(bool)
-        self._initial_states = initial_states
+        self.initial_states = initial_states
 
     def sample_initial(self) -> int:
-        return np.random.choice(self.num_states, p=self._initial_states)
+        return np.random.choice(self.num_states, p=self.initial_states)
 
     def transition(self, state: int, action: int) -> int:
         return np.random.choice(self.num_states, p=self.transition_matrix[self._sa_index(state, action)])
@@ -36,7 +36,7 @@ class Tabular:
             if self.is_terminal(state):
                 for action in range(self.num_actions):
                     sa = self._sa_index(state, action)
-                    wrap_around_matrix[sa, :] = self._initial_states
+                    wrap_around_matrix[sa, :] = self.initial_states
         return wrap_around_matrix
 
     def deterministic_policy_transition_matrix(self, deterministic_policy: np.ndarray,
@@ -46,7 +46,8 @@ class Tabular:
             policy[state, self._sa_index(state, deterministic_policy[state])] = 1
         return self.policy_transition_matrix(policy, transition_matrix)
 
-    def reward_vector(self):
+    @functools.lru_cache()
+    def reward_vector(self) -> np.ndarray:
         rewards = np.zeros((self.num_states * self.num_actions,))
         for state in range(self.num_states):
             for action in range(self.num_actions):
@@ -65,8 +66,6 @@ class Tabular:
         for value, vector in zip(values, vectors.T):
             # noinspection PyTypeChecker
             if np.isclose(value, 1):
-                if np.max(vector) <= 0:
-                    vector *= -1
                 if np.min(vector) < 0:
                     vector -= np.min(vector)
                 return np.real(vector / np.sum(vector))
@@ -108,18 +107,47 @@ class Tabular:
         return self.num_actions * state + action  # don't change
 
 
+def probabilistic_policy_selector(policy: np.ndarray) -> np.ndarray:
+    """
+    :param policy: |S|x|A|
+    :return: |S|x|S||A|
+    """
+    selector = np.zeros((policy.shape[0], policy.shape[0] * policy.shape[1]))
+    for state in range(policy.shape[0]):
+        selector[state, state*policy.shape[1]:(state+1)*policy.shape[1]] = policy[state, :]
+    return selector
+
+
+def evaluate_probabilistic(policy_selector: np.ndarray, tab: Tabular, discount_factor: float) -> np.ndarray:
+    """
+    :param policy_selector: |S|x|S||A|
+    :return: |S|
+    """
+    transition_matrix = policy_selector @ tab.transition_matrix
+    policy_rewards = policy_selector @ tab.reward_vector()
+    long_term_probabilities: np.ndarray = np.eye(tab.num_states) - discount_factor * transition_matrix
+    return np.linalg.solve(long_term_probabilities, policy_rewards)
+
+
+def evaluate_deterministic(policy: np.ndarray, tab: Tabular, discount_factor: float) -> np.ndarray:
+    """
+    :param policy: |S|
+    :return: |S|
+    """
+    transition_matrix = tab.transition_matrix.reshape(tab.num_states, tab.num_actions,
+                                                      tab.num_states)[np.arange(tab.num_states), policy, :]
+    policy_rewards = tab.reward_vector().reshape(-1, tab.num_actions)[np.arange(tab.num_states), policy]
+    long_term_probabilities: np.ndarray = np.eye(tab.num_states) - discount_factor * transition_matrix
+    return np.linalg.solve(long_term_probabilities, policy_rewards)
+
+
 def policy_iteration(tab: Tabular, discount_factor: float) -> np.ndarray:
     policy = np.zeros((tab.num_states,), dtype=np.int32)
-    rewards = tab.reward_vector()
-    new_policy = np.argmax(rewards.reshape((-1, tab.num_actions)), axis=1)
+    new_policy = np.argmax(tab.reward_vector().reshape((-1, tab.num_actions)), axis=1)
     progress = tqdm.tqdm()
     while np.any(policy != new_policy):
         policy = new_policy.copy()
-        transition_matrix = tab.transition_matrix.reshape(tab.num_states, tab.num_actions,
-                                                          tab.num_states)[np.arange(tab.num_states), policy, :]
-        policy_rewards = rewards.reshape(-1, tab.num_actions)[np.arange(tab.num_states), policy]
-        long_term_probabilities: np.ndarray = np.eye(tab.num_states) - discount_factor * transition_matrix
-        values = np.linalg.solve(long_term_probabilities, policy_rewards)
+        evaluate_deterministic(policy, tab, discount_factor)
         # noinspection PyUnresolvedReferences
         q_values = rewards + discount_factor * tab.transition_matrix @ values
         new_policy = np.argmax(q_values.reshape((-1, tab.num_actions)), axis=1)
@@ -220,31 +248,6 @@ class Gridworld:
         self.num_states = self.width * self.height
         self.num_actions = 4
 
-        # Transition matrix
-        transition_matrix = np.zeros((self.num_states * self.num_actions, self.num_states))
-        for state in range(self.num_states):
-            pos = self._pos(state)
-            left = self._state_index(*self._consolidate_pos(transition_grid, (pos[0] - 1, pos[1]), pos))
-            right = self._state_index(*self._consolidate_pos(transition_grid, (pos[0] + 1, pos[1]), pos))
-            up = self._state_index(*self._consolidate_pos(transition_grid, (pos[0], pos[1] - 1), pos))
-            down = self._state_index(*self._consolidate_pos(transition_grid, (pos[0], pos[1] + 1), pos))
-
-            transition_matrix[state * self.num_actions + self.LEFT, left] += 1 - transition_noise
-            transition_matrix[state * self.num_actions + self.LEFT, up] += transition_noise / 2
-            transition_matrix[state * self.num_actions + self.LEFT, down] += transition_noise / 2
-
-            transition_matrix[state * self.num_actions + self.RIGHT, right] += 1 - transition_noise
-            transition_matrix[state * self.num_actions + self.RIGHT, up] += transition_noise / 2
-            transition_matrix[state * self.num_actions + self.RIGHT, down] += transition_noise / 2
-
-            transition_matrix[state * self.num_actions + self.UP, up] += 1 - transition_noise
-            transition_matrix[state * self.num_actions + self.UP, left] += transition_noise / 2
-            transition_matrix[state * self.num_actions + self.UP, right] += transition_noise / 2
-
-            transition_matrix[state * self.num_actions + self.DOWN, down] += 1 - transition_noise
-            transition_matrix[state * self.num_actions + self.DOWN, left] += transition_noise / 2
-            transition_matrix[state * self.num_actions + self.DOWN, right] += transition_noise / 2
-
         # Reward matrix
         reward_vector = np.zeros((self.num_states,))
         terminal_vector = np.zeros((self.num_states,))
@@ -255,6 +258,34 @@ class Gridworld:
             initial_vector[state] = transition_grid[self._pos(state)] == S
         reward_matrix = state_reward_to_matrix(reward_vector, self.num_actions)
         initial_vector /= np.sum(initial_vector)
+
+        # Transition matrix
+        transition_matrix = np.zeros((self.num_states * self.num_actions, self.num_states))
+        for state in range(self.num_states):
+            if terminal_vector[state]:
+                transition_matrix[state * self.num_actions: (state+1) * self.num_actions, :] = 0
+            else:
+                pos = self._pos(state)
+                left = self._state_index(*self._consolidate_pos(transition_grid, (pos[0] - 1, pos[1]), pos))
+                right = self._state_index(*self._consolidate_pos(transition_grid, (pos[0] + 1, pos[1]), pos))
+                up = self._state_index(*self._consolidate_pos(transition_grid, (pos[0], pos[1] - 1), pos))
+                down = self._state_index(*self._consolidate_pos(transition_grid, (pos[0], pos[1] + 1), pos))
+
+                transition_matrix[state * self.num_actions + self.LEFT, left] += 1 - transition_noise
+                transition_matrix[state * self.num_actions + self.LEFT, up] += transition_noise / 2
+                transition_matrix[state * self.num_actions + self.LEFT, down] += transition_noise / 2
+
+                transition_matrix[state * self.num_actions + self.RIGHT, right] += 1 - transition_noise
+                transition_matrix[state * self.num_actions + self.RIGHT, up] += transition_noise / 2
+                transition_matrix[state * self.num_actions + self.RIGHT, down] += transition_noise / 2
+
+                transition_matrix[state * self.num_actions + self.UP, up] += 1 - transition_noise
+                transition_matrix[state * self.num_actions + self.UP, left] += transition_noise / 2
+                transition_matrix[state * self.num_actions + self.UP, right] += transition_noise / 2
+
+                transition_matrix[state * self.num_actions + self.DOWN, down] += 1 - transition_noise
+                transition_matrix[state * self.num_actions + self.DOWN, left] += transition_noise / 2
+                transition_matrix[state * self.num_actions + self.DOWN, right] += transition_noise / 2
 
         self.tabular = Tabular(transition_matrix, reward_matrix, terminal_vector, initial_vector)
 
