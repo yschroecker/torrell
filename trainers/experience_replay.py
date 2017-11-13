@@ -26,8 +26,8 @@ class MemoryBase(metaclass=abc.ABCMeta):
     def extend(self, batch: data.Batch[data.RLTransitionSequence]):
         pass
 
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def size(self) -> int:
         pass
 
@@ -57,13 +57,10 @@ class MemoryWithPolicy(MemoryBase):
         self._optimizer = optimizer
 
     def _update_policy(self, memory_batch: data.Batch[data.RLTransitionSequence]):
-        X = np.array(memory_batch.states(), dtype=np.float32)
-        y = memory_batch.actions()
-        y_tensor = torch_util.load_input(self._memory_policy.is_cuda, y)
-        X_tensor = torch_util.load_input(self._memory_policy.is_cuda, X)
-        X_var = torch.autograd.Variable(X_tensor, requires_grad=False)
-        y_var = torch.autograd.Variable(y_tensor, requires_grad=False)
-        loss = self._memory_policy.log_probability(X_var, y_var).mean()
+        memory_batch = memory_batch.to_tensor(self._memory_policy.is_cuda)
+        X = torch.autograd.Variable(memory_batch.states(), requires_grad=False)
+        y = torch.autograd.Variable(memory_batch.actions(), requires_grad=False)
+        loss = self._memory_policy.log_probability(X, y).mean()
 
         loss_tensor = loss.data
         if self._memory_policy.is_cuda:

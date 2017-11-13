@@ -1,13 +1,12 @@
-import time
 from typing import Sequence
 import random
 
 import numpy as np
-import tqdm
 
 from environments.environment import Environment
 from trainers.online_trainer import DiscreteNstepTrainer, DiscreteTrainerBase, TrainerConfig
 import data
+import visualization
 
 
 class SynchronizedDiscreteNstepTrainer(DiscreteTrainerBase):
@@ -24,7 +23,8 @@ class SynchronizedDiscreteNstepTrainer(DiscreteTrainerBase):
 
     def collect_transitions(self, _) -> data.Batch[data.RLTransitionSequence]:
         samples = None
-        while samples is None or sum(len(sequence.rewards) for sequence in samples.sequences) < self._batch_size:
+        # while samples is None or sum(len(sequence.rewards) for sequence in samples.sequences) < self._batch_size:
+        while samples is None or len(samples.sequences) < self._batch_size:  # TODO: mixed step returns.
             trainer = random.choice(self._trainers)
             trainer_batch = trainer.collect_sequence(self._look_ahead)
             if samples is None:
@@ -33,4 +33,8 @@ class SynchronizedDiscreteNstepTrainer(DiscreteTrainerBase):
                 samples = data.Batch(samples.sequences + [trainer_batch])
         self.reward_ema = self._trainers[0].reward_ema
         self.eval_reward_ema = self._trainers[0].eval_reward_ema
+        visualization.global_summary_writer.add_scalar('evaluation score/sample efficiency',
+                                                       np.median([trainer.last_eval_score
+                                                                  for trainer in self._trainers]),
+                                                       np.sum([trainer.num_samples for trainer in self._trainers]))
         return samples

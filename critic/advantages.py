@@ -1,7 +1,7 @@
 from typing import Optional
 import abc
 
-import critic.value_td
+import critic.temporal_difference
 from actor.actor_base import Batch as ActorBatch
 
 import torch
@@ -15,7 +15,7 @@ class AdvantageProvider(metaclass=abc.ABCMeta):
 
 
 class TDErrorAdvantageProvider(AdvantageProvider):
-    def __init__(self, td: critic.value_td.ValueTD):
+    def __init__(self, td: critic.temporal_difference.ValueTemporalDifferenceBase):
         self._td = td
 
     def compute_advantages(self, batch: data.Batch[data.TensorRLTransitionSequence]) -> ActorBatch:

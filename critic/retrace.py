@@ -7,7 +7,7 @@ import data
 import torch_util
 
 
-class Retrace(critic.temporal_difference.TemporalDifferenceBase):
+class Retrace(critic.temporal_difference.ValueTemporalDifferenceBase):
     def __init__(self, model: torch.nn.Module, sample_policy: policies.policy.PolicyModel,
                  current_policy: policies.policy.PolicyModel,
                  lambda_decay: float, target_update_rate: int, *args, **kwargs):
@@ -17,9 +17,11 @@ class Retrace(critic.temporal_difference.TemporalDifferenceBase):
         self._current_policy = current_policy
 
     def _update(self, batch: data.Batch[data.TensorRLTransitionSequence]) -> torch.autograd.Variable:
-        td_loss = torch.autograd.Variable(torch.zeros((len(batch.sequences),)), requires_grad=False)
+        td_loss = []
         zero = torch.autograd.Variable(torch.zeros((1,)), requires_grad=False)
-        for i, sequence in enumerate(batch.sequences):
+        if self._sample_policy.is_cuda:
+            zero = zero.cuda()
+        for sequence in batch.sequences:
             lambda_decay = torch.autograd.Variable(
                 torch_util.load_input(self._current_policy.is_cuda,
                                       self._lambda_decay ** np.arange(sequence.rewards.size(0)).astype(np.float32)),
@@ -47,8 +49,8 @@ class Retrace(critic.temporal_difference.TemporalDifferenceBase):
                 discounted_rewards = sequence_rewards
             td_error = retrace_iws*(discounted_rewards + discounted_values[1:] - discounted_values[:-1])
 
-            td_loss[i] = td_error.sum()**2/retrace_iws[0]
-        return td_loss.mean()
+            td_loss.append(td_error.sum()**2/retrace_iws[0])
+        return torch.cat(td_loss).mean()
 
     def values(self, states: torch.autograd.Variable) -> torch.autograd.Variable:
         return self._online_network(states).squeeze()

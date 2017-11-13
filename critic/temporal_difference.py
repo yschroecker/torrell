@@ -50,3 +50,9 @@ class TemporalDifferenceBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _update(self, batch: data.TensorRLTransitionSequence) -> torch.autograd.Variable:
         pass
+
+
+class ValueTemporalDifferenceBase(TemporalDifferenceBase):
+    @abc.abstractmethod
+    def values(self, states: torch.autograd.Variable) -> torch.autograd.Variable:
+        pass

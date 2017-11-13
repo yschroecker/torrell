@@ -85,6 +85,9 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         self._next_action = self._choose_action(self._next_state, 0)
         self._episode = 0
 
+        self.last_eval_score = 0
+        self.num_samples = 0
+
     def _end_evaluation(self):
         self._evaluation_countdown = self._evaluation_frequency
         self._evaluation_mode = False
@@ -110,6 +113,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
             action = self._next_action
             self._next_state, reward, is_terminal, _ = self._env.step(action)
             if not self._evaluation_mode:
+                self.num_samples += 1
                 # noinspection PyTypeChecker
                 reward = np.clip(reward, self._reward_clipping[0], self._reward_clipping[1])
 
@@ -133,6 +137,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
                         self._reward_log_smoothing * self._episode_reward
                     self.eval_score_ema = (1 - self._reward_log_smoothing) * self._episode_score + \
                         self._reward_log_smoothing * self._episode_score
+                    self.last_eval_score = self._episode_score
 
                 else:
                     self.reward_ema = (1 - self._reward_log_smoothing) * self.reward_ema + \

@@ -1,6 +1,5 @@
 import torch
 
-# import environments.breakout
 import numpy as np
 
 import chainerrl.envs.ale
@@ -10,6 +9,7 @@ import critic.retrace
 import actor.likelihood_ratio_gradient
 import trainers.online_trainer
 import trainers.synchronous
+import trainers.experience_replay
 import policies.softmax
 import visualization
 import optimization_strategies.simultaneous_gradient_descent
@@ -40,6 +40,9 @@ def _run():
 
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
     tdv = critic.retrace.Retrace(networks.simple_shared.VNetwork(shared_network), memory_policy, softmax_policy, 1, 1)
+    memory_optimizer = torch.optim.RMSprop(memory_policy_network.parameters(), lr=7e-4, eps=0.1)
+    memory = trainers.experience_replay.FIFOReplayMemory(num_states, num_actions, np.int32, 1000000)
+    memory = trainers.experience_replay.MemoryWithPolicy(memory, memory_policy, memory_optimizer)
 
     num_samples = 30000000
     batch_size = 32
@@ -76,7 +79,7 @@ def _run():
         ]
     )
     # noinspection PyTypeChecker
-    trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 4, batch_size)
+    trainer = trainers.experience_replay.AlternatingBatchExperienceReplay(envs, config, 4, batch_size, 4, 0, memory)
     trainer.train(num_samples // batch_size)
 
 

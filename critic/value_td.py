@@ -5,7 +5,7 @@ import data
 import visualization
 
 
-class ValueTD(critic.temporal_difference.TemporalDifferenceBase):
+class ValueTD(critic.temporal_difference.ValueTemporalDifferenceBase):
     def __init__(self, model: torch.nn.Module, target_update_rate: int, *args, **kwargs):
         super().__init__(model, target_update_rate, *args, **kwargs)
 
@@ -31,7 +31,7 @@ class ValueTD(critic.temporal_difference.TemporalDifferenceBase):
         return self._online_network(states).squeeze()
 
 
-class QValueTD(critic.temporal_difference.TemporalDifferenceBase):
+class QValueTD(critic.temporal_difference.ValueTemporalDifferenceBase):
     def __init__(self, model: torch.nn.Module, target_update_rate: int, *args, **kwargs):
         super().__init__(model, target_update_rate, *args, **kwargs)
 

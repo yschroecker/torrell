@@ -8,7 +8,7 @@ import data
 import visualization
 
 
-class DiscreteQLearningBase(critic.temporal_difference.TemporalDifferenceBase, metaclass=abc.ABCMeta):
+class DiscreteQLearningBase(critic.temporal_difference.ValueTemporalDifferenceBase, metaclass=abc.ABCMeta):
     def __init__(self, model: torch.nn.Module, target_update_rate: int, grad_report_rate: int=1000):
         super().__init__(model, target_update_rate, grad_report_rate)
         self._loss_fn = torch.nn.MSELoss()
