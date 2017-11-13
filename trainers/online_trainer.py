@@ -1,4 +1,6 @@
 from typing import Any, Type, Tuple, NamedTuple, Sequence, Callable, Generic, Optional
+import abc
+import time
 
 import torch.optim
 import torch.optim.lr_scheduler
@@ -28,7 +30,7 @@ class TrainerConfig(NamedTuple):
     hooks: Sequence[Tuple[int, Callable[[int], None]]] = []
 
 
-class DiscreteTrainerBase:
+class DiscreteTrainerBase(metaclass=abc.ABCMeta):
     def __init__(self, trainer_config: TrainerConfig):
         self._optimization_strategy = trainer_config.optimization_strategy
         self._reward_clipping = trainer_config.reward_clipping
@@ -36,6 +38,7 @@ class DiscreteTrainerBase:
         self.reward_ema = 0
         self.eval_score_ema = 0
         self.eval_reward_ema = 0
+        self._last_print = 0
         self._sample_count = 0
         self._hooks = trainer_config.hooks
 
@@ -46,6 +49,20 @@ class DiscreteTrainerBase:
         self._sample_count += sum(sequence.rewards.shape[0] for sequence in batch.sequences)
         self._optimization_strategy.iterate(iteration, batch)
         return f"r: {self.reward_ema}/{self.eval_reward_ema}, iteration: {iteration}, samples: {self._sample_count}"
+
+    def train(self, num_iterations: int):
+        trange = tqdm.trange(num_iterations)
+        for iteration in trange:
+            samples = self.collect_transitions(iteration)
+            if samples is not None:
+                trange.set_description(self.do_train(iteration, samples))
+                if time.time() - self._last_print > 60:
+                    print(f"iteration {iteration}, eval_score {self.eval_score_ema}")
+                    self._last_print = time.time()
+
+    @abc.abstractmethod
+    def collect_transitions(self, iteration: int) -> Optional[data.Batch[data.RLTransitionSequence]]:
+        pass
 
 
 class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
@@ -152,7 +169,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
                 discount_weights=np.array(discount_weights, dtype=np.float32))
         )
 
-    def collect_transitions(self, batch_size: int, sequence_length: int = 1) -> data.Batch[data.RLTransitionSequence]:
+    def _collect_transitions(self, batch_size: int, sequence_length: int = 1) -> data.Batch[data.RLTransitionSequence]:
         return data.Batch([self.collect_sequence(sequence_length) for _ in range(batch_size)])
 
 
@@ -161,11 +178,8 @@ class DiscreteOnlineTrainer(DiscreteTrainer):
         self._batch_size = batch_size
         super().__init__(env, trainer_config)
 
-    def train(self, num_iterations: int):
-        trange = tqdm.trange(num_iterations)
-        for iteration in trange:
-            batch = self.collect_transitions(self._batch_size)
-            trange.set_description(self.do_train(iteration, batch))
+    def collect_transitions(self, _) -> data.Batch[data.RLTransitionSequence]:
+        return self._collect_transitions(self._batch_size, 1)
 
 
 class DiscreteNstepTrainer(DiscreteTrainer):
@@ -173,8 +187,5 @@ class DiscreteNstepTrainer(DiscreteTrainer):
         self._batch_size = batch_size
         super().__init__(env, trainer_config)
 
-    def train(self, num_iterations: int):
-        trange = tqdm.trange(num_iterations)
-        for iteration in trange:
-            batch = self.collect_transitions(1, self._batch_size)
-            trange.set_description(self.do_train(iteration, batch))
+    def collect_transitions(self, _) -> data.Batch[data.RLTransitionSequence]:
+        return self._collect_transitions(1, self._batch_size)

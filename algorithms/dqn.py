@@ -30,7 +30,7 @@ def train(num_iterations: int, env: Environment[int], q_network: torch.nn.Module
         max_len=max_len,
         evaluation_frequency=evaluation_frequency
     )
-    trainer = trainers.experience_replay.DiscreteExperienceReplay(
+    trainer = trainers.experience_replay.MixedBatchExperienceReplay(
         env, config, memory_size, batch_size, initial_population
     )
     trainer.train(num_iterations)

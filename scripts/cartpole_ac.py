@@ -4,12 +4,7 @@ import torch
 import torch.nn.functional as f
 
 import torch_util
-import trainers.online_trainer
 import environments.cartpole
-import policies.softmax
-import critic.value_td
-import critic.advantages
-import actor.likelihood_ratio_gradient
 import algorithms.discrete_a2c
 
 
