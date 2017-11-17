@@ -29,3 +29,10 @@ def load_inputs(cuda: bool, *input_arrays: np.ndarray) -> Tuple[Any, ...]:
 
 def module_is_cuda(target_module: torch.nn.Module) -> bool:
     return next(target_module.parameters()).is_cuda
+
+
+def rcumsum(tensor: TensorT) -> TensorT:
+    reverse_indices = torch.arange(tensor.size(0) - 1, -1, -1).long()
+    if tensor.is_cuda:
+        reverse_indices = reverse_indices.cuda()
+    return tensor[reverse_indices].cumsum(dim=0)[reverse_indices]

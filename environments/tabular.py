@@ -66,6 +66,8 @@ class Tabular:
         for value, vector in zip(values, vectors.T):
             # noinspection PyTypeChecker
             if np.isclose(value, 1):
+                if np.max(vector) <= 0:
+                    vector *= -1
                 if np.min(vector) < 0:
                     vector -= np.min(vector)
                 return np.real(vector / np.sum(vector))
@@ -116,6 +118,21 @@ def probabilistic_policy_selector(policy: np.ndarray) -> np.ndarray:
     for state in range(policy.shape[0]):
         selector[state, state*policy.shape[1]:(state+1)*policy.shape[1]] = policy[state, :]
     return selector
+
+
+def evaluate_average_reward_irreducible(policy_selector: np.ndarray, tab: Tabular) -> Tuple[float, np.ndarray]:
+    """
+    :param policy_selector: |S|x|S||A|
+    :return: |S|
+    """
+    transition_matrix = policy_selector @ tab.transition_matrix
+    policy_rewards = policy_selector @ tab.reward_vector()
+    long_term_probabilities: np.ndarray = transition_matrix - np.eye(transition_matrix.shape[0])
+    long_term_probabilities[:, 0] = -1
+    variables = np.linalg.solve(long_term_probabilities, policy_rewards)
+    average_reward = variables[0]
+    relative_value = np.concatenate((0, variables[1:]))
+    return relative_value
 
 
 def evaluate_probabilistic(policy_selector: np.ndarray, tab: Tabular, discount_factor: float) -> np.ndarray:
@@ -230,7 +247,7 @@ class Gridworld:
     UP = 2
     DOWN = 3
 
-    def _state_index(self, x: int, y: int) -> int:
+    def state_index(self, x: int, y: int) -> int:
         return self.width * y + x
 
     def _pos(self, state_index: int) -> Tuple[int, int]:
@@ -266,10 +283,10 @@ class Gridworld:
                 transition_matrix[state * self.num_actions: (state+1) * self.num_actions, :] = 0
             else:
                 pos = self._pos(state)
-                left = self._state_index(*self._consolidate_pos(transition_grid, (pos[0] - 1, pos[1]), pos))
-                right = self._state_index(*self._consolidate_pos(transition_grid, (pos[0] + 1, pos[1]), pos))
-                up = self._state_index(*self._consolidate_pos(transition_grid, (pos[0], pos[1] - 1), pos))
-                down = self._state_index(*self._consolidate_pos(transition_grid, (pos[0], pos[1] + 1), pos))
+                left = self.state_index(*self._consolidate_pos(transition_grid, (pos[0] - 1, pos[1]), pos))
+                right = self.state_index(*self._consolidate_pos(transition_grid, (pos[0] + 1, pos[1]), pos))
+                up = self.state_index(*self._consolidate_pos(transition_grid, (pos[0], pos[1] - 1), pos))
+                down = self.state_index(*self._consolidate_pos(transition_grid, (pos[0], pos[1] + 1), pos))
 
                 transition_matrix[state * self.num_actions + self.LEFT, left] += 1 - transition_noise
                 transition_matrix[state * self.num_actions + self.LEFT, up] += transition_noise / 2
@@ -451,22 +468,27 @@ class Racetrack:
             return policy
 
 
-simple_grid1 = Gridworld(
-    np.array(
-        [[0, 0, 0, 0, G],
-         [0, 0, 0, 0, 0],
-         [0, 0, 0, 0, 0],
-         [0, 0, 0, 0, 0],
-         [S, 0, 0, 0, 0]]
-    ).T,
-    np.array(
-        [[0, 0, 0, 0, 1],
-         [0, 0, 0, 0, 0],
-         [0, 0, 0, 0, 0],
-         [0, 0, 0, 0, 0],
-         [0, 0, 0, 0, 0]]
-    ).T
-)
+def noisy_simple_grid1(transition_noise: float) -> Gridworld:
+    return Gridworld(
+        np.array(
+            [[0, 0, 0, 0, G],
+             [0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0],
+             [S, 0, 0, 0, 0]]
+        ).T,
+        np.array(
+            [[0, 0, 0, 0, 1],
+             [0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0]]
+        ).T,
+        transition_noise
+    )
+
+
+simple_grid1 = noisy_simple_grid1(0)
 
 simple_grid2 = Gridworld(
     np.array(

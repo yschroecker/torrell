@@ -26,11 +26,15 @@ def chain():
     return environments.tabular.TabularEnv(tabular)
 
 
-def policy(_: int) -> ActionDistribution:
+def policy1(_: int) -> ActionDistribution:
     return 1/3, 2/3
 
 
-def simulate(num_steps: int) -> Tuple[Sequence[int], Sequence[float], Sequence[float]]:
+def policy2(_: int) -> ActionDistribution:
+    return 1/2, 1/2
+
+
+def simulate(policy, num_steps: int) -> Tuple[Sequence[int], Sequence[float], Sequence[float]]:
     env = chain()
 
     states = []
@@ -58,27 +62,38 @@ def empirical_state_distribution(states: Sequence[int]) -> Sequence[float]:
     return np.bincount(states)/len(states)
 
 
-def int_sail_estimate(states: Sequence[int], action_probabilities: Sequence[float], weights: Sequence[float],
+def int_sail_estimate(states: Sequence[int], action_probabilities: Sequence[float],
                       learning_rate: float=0.1) \
         -> Sequence[float]:
     value = np.ones((num_states,))
     # mu = 0
     mu = (np.log(action_probabilities)).mean()
     # e = 0
-    for state, action_probability, next_state, weight in zip(states[:-1], action_probabilities, states[1:], weights):
+    for state, action_probability, next_state in zip(states[:-1], action_probabilities, states[1:]):
         log_pi = np.log(action_probability)
         # mu = (1 - learning_rate) * mu + learning_rate*log_pi
         value[next_state] += learning_rate * (log_pi - mu + value[state] - value[next_state]) / action_probability
+    return value
+    '''
+    np.exp(value[0] - value[1])
     state_weights = np.exp(value)
     return state_weights/np.sum(state_weights)
+    '''
 
 
 def run():
-    sample_states, sample_action_probabilities, weights = simulate(100000)
-    empirical_dist = empirical_state_distribution(sample_states)
-    print(empirical_dist)
-    sail_dist = int_sail_estimate(sample_states, sample_action_probabilities, weights, 0.001)
-    print(sail_dist)
+    sample_states, sample_action_probabilities, weights = simulate(policy1, 100000)
+    empirical_dist1 = empirical_state_distribution(sample_states)
+    values1 = int_sail_estimate(sample_states, sample_action_probabilities, 0.001)
+
+    sample_states, sample_action_probabilities, weights = simulate(policy2, 100000)
+    empirical_dist2 = empirical_state_distribution(sample_states)
+    re = empirical_dist1/empirical_dist2
+    print(re/re.sum())
+    values2 = int_sail_estimate(sample_states, sample_action_probabilities, 0.001)
+
+    ri = np.exp(values1 - values2)
+    print(ri/ri.sum())
 
 
 if __name__ == '__main__':

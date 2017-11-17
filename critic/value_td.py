@@ -4,6 +4,8 @@ import critic.temporal_difference
 import data
 import visualization
 
+import numpy as np
+
 
 class ValueTD(critic.temporal_difference.ValueTemporalDifferenceBase):
     def __init__(self, model: torch.nn.Module, target_update_rate: int, *args, **kwargs):

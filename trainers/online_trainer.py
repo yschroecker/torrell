@@ -38,6 +38,7 @@ class DiscreteTrainerBase(metaclass=abc.ABCMeta):
         self.reward_ema = 0
         self.eval_score_ema = 0
         self.eval_reward_ema = 0
+        self.discount_factor = trainer_config.discount_factor
         self._last_print = 0
         self._sample_count = 0
         self._hooks = trainer_config.hooks
@@ -104,7 +105,6 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         states = [self._next_state]
         actions = [self._next_action]
         rewards = []
-        discount_weights = []
         is_terminal = False
         step = 0
         while step < num_steps and not is_terminal:
@@ -123,8 +123,11 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
 
             if not self._evaluation_mode:
                 rewards.append(reward)
-                discount_weights.append(self._discount_factor**self._t)
                 step += 1
+
+            if not self._evaluation_mode:
+                states.append(self._next_state)
+                actions.append(self._next_action)
 
             if is_terminal or self._t >= self._maxlen > 0:
                 is_terminal = True
@@ -145,33 +148,29 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
                 self._episode_reward = 0.
                 self._episode_score = 0.
                 self._episode += 1
+                self._next_state = self._env.reset()
                 if self._evaluation_mode:
                     self._end_evaluation()
                     states = [self._next_state]
                     actions = [self._next_action]
                     rewards = []
-                    discount_weights = []
                     is_terminal = False
                     step = 0
                 elif self._evaluation_countdown <= 0 < self._evaluation_frequency:
                     # noinspection PyAttributeOutsideInit
                     self._start_evaluation()
-                self._next_state = self._env.reset()
                 self._t = 0
             self._next_action = self._choose_action(self._next_state, self._t)
 
-            if not self._evaluation_mode:
-                states.append(self._next_state)
-                actions.append(self._next_action)
-
         assert len(rewards) > 0
+        assert len(states) == len(rewards) + 1
         return data.RLTransitionSequence(
             rewards=np.array(rewards, dtype=np.float32),
             transition_sequence=data.TransitionSequence(
                 states=[np.array(state, dtype=np.float32) for state in states],
                 actions=np.array(actions, dtype=self._action_type),
-                is_terminal=np.array([float(is_terminal)], dtype=np.float32),
-                discount_weights=np.array(discount_weights, dtype=np.float32))
+                is_terminal=np.array([float(is_terminal)], dtype=np.float32)
+            )
         )
 
     def _collect_transitions(self, batch_size: int, sequence_length: int = 1) -> data.Batch[data.RLTransitionSequence]:
