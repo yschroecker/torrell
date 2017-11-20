@@ -65,7 +65,9 @@ def _run():
                                                   f"/home/yannick/breakout_policies/{iteration}")),
             (100, image_summary)
             # (1, lambda _: scheduler.step())
-        ]
+        ],
+        random_start_duration=0,
+        random_start_distribution=lambda: np.random.choice(envs[0].action_space.n)
     )
     # noinspection PyTypeChecker
     trainer = trainers.synchronous.SynchronizedDiscreteNstepTrainer(envs, config, 4, batch_size)

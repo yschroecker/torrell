@@ -28,6 +28,8 @@ class TrainerConfig(NamedTuple):
     max_len: int = -1
     evaluation_frequency: int = -1
     hooks: Sequence[Tuple[int, Callable[[int], None]]] = []
+    random_start_duration: int = 0
+    random_start_distribution: Callable[[], Any] = None
 
 
 class DiscreteTrainerBase(metaclass=abc.ABCMeta):
@@ -74,6 +76,9 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         self._discount_factor = trainer_config.discount_factor
         self._evaluation_frequency = trainer_config.evaluation_frequency
         self._action_type = trainer_config.policy_model.action_type
+        self._random_start_duration = trainer_config.random_start_duration
+        self._random_start_distribution = trainer_config.random_start_distribution
+        assert self._random_start_distribution is not None or self._random_start_duration == 0
 
         self._end_evaluation()
 
@@ -82,7 +87,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         self._t = 0
         self._episode_reward = 0.
         self._episode_score = 0.
-        self._next_state = env.reset()
+        self._next_state = self._reset_env()
         self._next_action = self._choose_action(self._next_state, 0)
         self._episode = 0
 
@@ -100,6 +105,14 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
 
     def _choose_action(self, state: np.ndarray, t: int) -> ActionT:
         return self._policy.sample(state, t, not self._evaluation_mode)
+
+    def _reset_env(self) -> np.ndarray:
+        state = self._env.reset()
+        for _ in range(self._random_start_duration):
+            state, _, is_terminal, _ = self._env.step(self._random_start_distribution())
+            if is_terminal:
+                return self._reset_env()  # can overflow under unreasonable configuration
+        return state
 
     def collect_sequence(self, num_steps: int) -> data.RLTransitionSequence:
         states = [self._next_state]
@@ -148,7 +161,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
                 self._episode_reward = 0.
                 self._episode_score = 0.
                 self._episode += 1
-                self._next_state = self._env.reset()
+                self._next_state = self._reset_env()
                 if self._evaluation_mode:
                     self._end_evaluation()
                     states = [self._next_state]

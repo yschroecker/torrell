@@ -19,6 +19,7 @@ class GradientDescentStrategy(OptimizationStrategy, metaclass=abc.ABCMeta):
         self._optimizer = optimizer
         self._gradient_clipping = gradient_clipping
         self._clip_norm = clip_norm
+        self._visualization_counter = 0
 
     @abc.abstractmethod
     def _targets(self, iteration: int, batch: data.Batch[data.TensorRLTransitionSequence]) -> \

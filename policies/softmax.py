@@ -5,6 +5,7 @@ import torch.nn.functional
 import numpy as np
 
 import policies.policy
+import visualization
 
 
 class SoftmaxPolicyModel(policies.policy.PolicyModel[int]):
@@ -43,6 +44,8 @@ class SoftmaxPolicy(policies.policy.Policy):
     def __init__(self, policy_model: SoftmaxPolicyModel):
         self.__model = policy_model
 
+        self._plot_count = 0
+
     @property
     def _model(self) -> SoftmaxPolicyModel:
         return self.__model
@@ -53,5 +56,9 @@ class SoftmaxPolicy(policies.policy.Policy):
         if self._model.is_cuda:
             probabilities = probabilities.cpu()
         probabilities = probabilities[0].numpy()
+        if self._plot_count % 1000 == 0:
+            for i, p in enumerate(probabilities):
+                visualization.global_summary_writer.add_scalar(f"pi_{i}", np.array(p))
+        self._plot_count += 1
         return np.random.choice(probabilities.shape[0], p=probabilities)
 

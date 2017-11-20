@@ -144,8 +144,8 @@ class Batch(Generic[SequenceT]):
     def bootstrap_weights(self) -> torch_util.FloatTensor:
         return torch.cat([weight.cuda() if sequence.rewards.is_cuda else weight for sequence in self.sequences
                           for weight in ([torch.pow(self.discount_factor,
-                                                    torch.arange(0, sequence.rewards.size(0) - 1)),
-                                          self.discount_factor ** (sequence.rewards.size(0) - 1) *
+                                                    torch.arange(1, sequence.rewards.size(0))),
+                                          self.discount_factor ** (sequence.rewards.size(0)) *
                                           (1 - sequence.is_terminal)]
                                          if sequence.rewards.size(0) > 1
                                          else [self.discount_factor * (1 - sequence.is_terminal)])])
