@@ -136,10 +136,10 @@ class Batch(Generic[SequenceT]):
         return torch.cat([sequence.actions[:-1] for sequence in self.sequences])
 
     def bootstrap_states(self) -> torch_util.FloatTensor:
-        return torch.cat([sequence.states[1:] for sequence in self.sequences])
+        return torch.cat([sequence.states[-1:].expand_as(sequence.states[1:]) for sequence in self.sequences])
 
     def bootstrap_actions(self) -> torch_util.FloatTensor:
-        return torch.cat([sequence.actions[1:] for sequence in self.sequences])
+        return torch.cat([sequence.actions[-1:].expand_as(sequence.actions[1:]) for sequence in self.sequences])
 
     def bootstrap_weights(self) -> torch_util.FloatTensor:
         return torch.cat([weight.cuda() if sequence.rewards.is_cuda else weight for sequence in self.sequences

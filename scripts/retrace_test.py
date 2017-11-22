@@ -31,7 +31,7 @@ def _run():
     eval_policy_network.weight.data = torch_util.load_input(False, eval_policy_matrix.T.astype(np.float32))
     eval_policy = policies.softmax.SoftmaxPolicyModel(eval_policy_network)
 
-    tdv = critic.retrace.Retrace(v_network, sample_policy, eval_policy, 0.9, 1)
+    tdv = critic.retrace.Retrace(v_network, sample_policy, eval_policy, 0.5)
     # tdv = critic.value_td.ValueTD(v_network, 1)
     sample_sample_policy = policies.softmax.SoftmaxPolicy(sample_policy)
     env = grid.one_hot_env()
@@ -55,16 +55,15 @@ def _run():
                 state = env.reset()
                 action = sample_sample_policy.sample(state, 0)
                 break
-        sequences = [data.RLTransitionSequence(
-            rewards=np.array(rewards, np.float32)[j:],
+        sequence = data.RLTransitionSequence(
+            rewards=np.array(rewards, np.float32),
             transition_sequence=data.TransitionSequence(
-                states=np.array(states[j:], dtype=np.float32),
-                actions=np.array(actions[j:], np.int32),
-                is_terminal=np.array([is_terminal], dtype=np.float32),
-                discount_weights=np.array((discount_weights if j == 0 else discount_weights[:-j]), dtype=np.float32)
+                states=np.array(states, dtype=np.float32),
+                actions=np.array(actions, np.int32),
+                is_terminal=np.array([is_terminal], dtype=np.float32)
             )
-        ) for j in range(len(rewards))]
-        batch = data.Batch(sequences)
+        )
+        batch = data.Batch([sequence], discount_factor=0.9)
         loss = tdv.update_loss(batch)
         optimizer.zero_grad()
         loss.backward()

@@ -15,22 +15,49 @@ import visualization
 import optimization_strategies.simultaneous_gradient_descent
 
 
+class ChainerRLALEWrapper:
+    def __init__(self):
+        self._env = chainerrl.envs.ale.ALE('breakout')
+
+    def step(self, action):
+        return self._env.step(action)
+
+    def reset(self):
+        self._env.ale.reset_game()
+        return self._env.reset()
+
+    @property
+    def ale(self):
+        return self._env.ale
+
+    @property
+    def evaluation_mode(self):
+        return self._env.treat_life_lost_as_terminal
+
+    @evaluation_mode.setter
+    def evaluation_mode(self, value):
+        self._env.treat_life_lost_as_terminal = value
+
+
 def _run():
     # envs = [environments.breakout.Breakout('/home/yannick/breakout_monitor') for _ in range(16)]
-    envs = [chainerrl.envs.ale.ALE('breakout') for _ in range(16)]
+    envs = [ChainerRLALEWrapper() for _ in range(16)]
     num_states = [4, 84, 84]
     image_width = 84
     image_height = 84
     history_length = 4
-    num_actions = envs[0].action_space.n
+    num_actions = 4
     shared_network = networks.simple_shared.SimpleSharedNetwork(
         image_width, image_height, history_length, num_actions
     )
     shared_network.cuda()
 
     optimizer = torch.optim.RMSprop(shared_network.parameters(), lr=7e-4, eps=0.1)
-    tdv = critic.value_td.ValueTD(networks.simple_shared.VNetwork(shared_network), target_update_rate=1)
     softmax_policy = policies.softmax.SoftmaxPolicyModel(networks.simple_shared.PolicyNetwork(shared_network))
+    # tdv = critic.value_td.ValueTD(networks.simple_shared.VNetwork(shared_network), target_update_rate=1)
+    import critic.retrace
+    tdv = critic.retrace.Retrace(networks.simple_shared.VNetwork(shared_network), softmax_policy, softmax_policy,
+                                 lambda_decay=1)
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
 
     num_samples = 30000000

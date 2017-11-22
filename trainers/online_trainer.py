@@ -97,11 +97,11 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
     def _end_evaluation(self):
         self._evaluation_countdown = self._evaluation_frequency
         self._evaluation_mode = False
-        self._env.treat_life_lost_as_terminal = True
+        self._env.evaluation_mode = True
 
     def _start_evaluation(self):
         self._evaluation_mode = True
-        self._env.treat_life_lost_as_terminal = False  # TODO: refactor!!!
+        self._env.evaluation_mode = False
 
     def _choose_action(self, state: np.ndarray, t: int) -> ActionT:
         return self._policy.sample(state, t, not self._evaluation_mode)
