@@ -142,13 +142,11 @@ class Batch(Generic[SequenceT]):
         return torch.cat([sequence.actions[-1:].expand_as(sequence.actions[1:]) for sequence in self.sequences])
 
     def bootstrap_weights(self) -> torch_util.FloatTensor:
-        return torch.cat([weight.cuda() if sequence.rewards.is_cuda else weight for sequence in self.sequences
-                          for weight in ([torch.pow(self.discount_factor,
-                                                    torch.arange(1, sequence.rewards.size(0))),
-                                          self.discount_factor ** (sequence.rewards.size(0)) *
-                                          (1 - sequence.is_terminal)]
-                                         if sequence.rewards.size(0) > 1
-                                         else [self.discount_factor * (1 - sequence.is_terminal)])])
+        ranges = [torch.arange(sequence.rewards.size(0), 0, -1) for sequence in self.sequences]
+        if self.sequences[0].rewards.is_cuda:
+            ranges = [r.cuda() for r in ranges]
+        return torch.cat([torch.pow((1 - sequence.is_terminal) * self.discount_factor, arange)
+                          for sequence, arange in zip(self.sequences, ranges)])
 
     def intermediate_returns(self) -> torch_util.FloatTensor:
         def discounts(sequence):

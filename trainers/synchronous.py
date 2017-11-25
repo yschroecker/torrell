@@ -24,13 +24,15 @@ class SynchronizedDiscreteNstepTrainer(DiscreteTrainerBase):
     def collect_transitions(self, _) -> data.Batch[data.RLTransitionSequence]:
         samples = None
         # while samples is None or sum(len(sequence.rewards) for sequence in samples.sequences) < self._batch_size:
-        while samples is None or samples.size() < self._batch_size:
+        sample_size = 0
+        while samples is None or sample_size < self._batch_size:
             trainer = random.choice(self._trainers)
-            trainer_batch = trainer.collect_sequence(self._look_ahead)
+            trainer_batch = trainer.collect_sequence(min(self._look_ahead, self._batch_size - sample_size))
             if samples is None:
                 samples = data.Batch([trainer_batch], self.discount_factor)
             else:
                 samples = data.Batch(samples.sequences + [trainer_batch], self.discount_factor)
+            sample_size = samples.size()
         self.reward_ema = self._trainers[0].reward_ema
         self.eval_reward_ema = self._trainers[0].eval_reward_ema
         visualization.global_summary_writer.add_scalar('evaluation score/sample efficiency',

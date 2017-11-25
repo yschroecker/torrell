@@ -26,6 +26,8 @@ class ValueTD(critic.temporal_difference.ValueTemporalDifferenceBase):
             f'TD/target_values ({self.name})', target_values.mean().data[0], self._update_counter
         )
         target_values.volatile = False
+        if np.any(bootstrap_weights.data.cpu().numpy() == 0):
+            import pdb; pdb.set_trace()
 
         return torch.mean((values_o.squeeze() - target_values) ** 2)
 

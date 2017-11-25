@@ -1,6 +1,6 @@
-import torch
+import random
 
-# import environments.breakout
+import torch
 import numpy as np
 
 import chainerrl.envs.ale
@@ -16,8 +16,8 @@ import optimization_strategies.simultaneous_gradient_descent
 
 
 class ChainerRLALEWrapper:
-    def __init__(self):
-        self._env = chainerrl.envs.ale.ALE('breakout')
+    def __init__(self, seed):
+        self._env = chainerrl.envs.ale.ALE('breakout', seed=seed)
 
     def step(self, action):
         return self._env.step(action)
@@ -40,8 +40,13 @@ class ChainerRLALEWrapper:
 
 
 def _run():
+    random.seed(0)
+    np.random.seed(1)
+    torch.manual_seed(2)
+    torch.cuda.manual_seed(3)
+
     # envs = [environments.breakout.Breakout('/home/yannick/breakout_monitor') for _ in range(16)]
-    envs = [ChainerRLALEWrapper() for _ in range(16)]
+    envs = [ChainerRLALEWrapper(i) for i in range(16)]
     num_states = [4, 84, 84]
     image_width = 84
     image_height = 84
@@ -54,10 +59,10 @@ def _run():
 
     optimizer = torch.optim.RMSprop(shared_network.parameters(), lr=7e-4, eps=0.1)
     softmax_policy = policies.softmax.SoftmaxPolicyModel(networks.simple_shared.PolicyNetwork(shared_network))
-    # tdv = critic.value_td.ValueTD(networks.simple_shared.VNetwork(shared_network), target_update_rate=1)
-    import critic.retrace
-    tdv = critic.retrace.Retrace(networks.simple_shared.VNetwork(shared_network), softmax_policy, softmax_policy,
-                                 lambda_decay=1)
+    tdv = critic.value_td.ValueTD(networks.simple_shared.VNetwork(shared_network), target_update_rate=1)
+    # import critic.retrace
+    #tdv = critic.retrace.Retrace(networks.simple_shared.VNetwork(shared_network), softmax_policy, softmax_policy,
+                                 # lambda_decay=1)
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
 
     num_samples = 30000000
@@ -86,7 +91,7 @@ def _run():
         discount_factor=0.99,
         reward_log_smoothing=0.1,
         evaluation_frequency=1000,
-        max_len=10000,
+        # max_len=10000,
         hooks=[
             (100000, lambda iteration: torch.save(shared_network,
                                                   f"/home/yannick/breakout_policies/{iteration}")),
