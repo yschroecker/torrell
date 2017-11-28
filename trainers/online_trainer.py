@@ -88,7 +88,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         self._episode_reward = 0.
         self._episode_score = 0.
         self._next_state = self._reset_env()
-        self._next_action = self._choose_action(self._next_state, 0)
+        # self._next_action = self._choose_action(self._next_state, 0)
         self._episode = 0
 
         self.last_eval_score = 0
@@ -116,14 +116,15 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
 
     def collect_sequence(self, num_steps: int) -> data.RLTransitionSequence:
         states = [self._next_state]
-        actions = [self._next_action]
+        next_action = self._choose_action(self._next_state, 0)
+        actions = [next_action]
         rewards = []
         is_terminal = False
         step = 0
         while step < num_steps and not is_terminal:
             self._evaluation_countdown -= 1
             state = self._next_state
-            action = self._next_action
+            action = next_action
             self._next_state, reward, is_terminal, _ = self._env.step(action)
             if not self._evaluation_mode:
                 self.num_samples += 1
@@ -140,7 +141,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
 
             if not self._evaluation_mode:
                 states.append(self._next_state)
-                actions.append(self._next_action)
+                actions.append(next_action)
 
             if is_terminal or self._t >= self._maxlen > 0:
                 is_terminal = True
@@ -165,7 +166,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
                 if self._evaluation_mode:
                     self._end_evaluation()
                     states = [self._next_state]
-                    actions = [self._next_action]
+                    actions = [next_action]
                     rewards = []
                     is_terminal = False
                     step = 0
@@ -173,7 +174,7 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
                     # noinspection PyAttributeOutsideInit
                     self._start_evaluation()
                 self._t = 0
-            self._next_action = self._choose_action(self._next_state, self._t)
+            next_action = self._choose_action(self._next_state, self._t)
 
         assert len(rewards) > 0
         assert len(states) == len(rewards) + 1
