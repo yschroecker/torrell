@@ -1,21 +1,20 @@
 import algorithms.dqn
-# import environments.breakout
-import chainerrl.envs.ale
+import environments.breakout
 import networks.simple_dueling
 
 
 def _run():
-    # env = environments.breakout.Breakout('/home/yannick/breakout_monitor')
-    env = chainerrl.envs.ale.ALE('breakout')
-    num_actions = env.action_space.n
+    env = environments.breakout.Breakout('/home/yannick/breakout_monitor')
+    num_states = env.state_dim
+    num_actions = env.num_actions
     q_network = networks.simple_dueling.SimpleDuelingQNetwork(
-        84, 84, 4, num_actions
+        env.image_width, env.image_height, env.history_length, num_actions
     )
     q_network.cuda()
     algorithms.dqn.train(
         env=env,
         q_network=q_network,
-        state_dim=3,
+        state_dim=num_states,
         num_actions=num_actions,
         discount_factor=0.95,
         lr=0.00001,

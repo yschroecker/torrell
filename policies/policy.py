@@ -36,10 +36,10 @@ class PolicyModel(Generic[ActionT], metaclass=abc.ABCMeta):
 
     def visualize(self, counter):
         for name, parameter in self._module.named_parameters():
+            visualization.global_summary_writer.add_histogram(
+                f'pi ({name})', parameter.data.cpu().numpy(), counter
+            )
             if parameter.grad is not None:
-                visualization.global_summary_writer.add_histogram(
-                    f'pi ({name})', parameter.data.cpu().numpy(), counter
-                )
                 visualization.global_summary_writer.add_histogram(
                     f'pi {name}_grad', parameter.grad.data.cpu().numpy(), counter
                 )
@@ -57,13 +57,17 @@ class Policy(Generic[ActionT], metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def _sample(self, state: torch.autograd.Variable, t: int, training: bool) -> ActionT:
+    def sample_from_var(self, state: torch.autograd.Variable, t: int, training: bool) -> ActionT:
         pass
 
-    def sample(self, state: np.ndarray, t: int, training: bool=False) -> ActionT:
+    def sample(self, state: np.ndarray, t: int, training: bool=True) -> ActionT:
         state_tensor = torch.from_numpy(np.array([state])).type(
             torch.cuda.FloatTensor if self._model.is_cuda else torch.FloatTensor
         )
         state_var = torch.autograd.Variable(state_tensor, volatile=True)
-        return self._sample(state_var, t, training)
+        return self.sample_from_var(state_var, t, training)
+
+    @property
+    def action_type(self) -> Type[np.dtype]:
+        return self._model.action_type
 

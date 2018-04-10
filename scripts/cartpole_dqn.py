@@ -25,14 +25,13 @@ def _run():
     num_actions = env.action_space.n
     q_network = QNetwork(num_states, num_actions)
     q_network.cuda()
-    algorithms.dqn.train(
+    dqn = algorithms.dqn.DQN(
         env=env,
         q_network=q_network,
         state_dim=num_states,
         num_actions=num_actions,
         discount_factor=1,
         lr=1e-3,
-        num_iterations=100000,
         target_update_rate=100,
         memory_size=100000,
         batch_size=32,
@@ -44,6 +43,8 @@ def _run():
         max_len=200,
         double_q=True
     )
+    for iteration in dqn.rl_eval_range(0, 100000):
+        dqn.iterate(iteration)
 
 
 if __name__ == '__main__':

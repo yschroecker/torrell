@@ -5,18 +5,21 @@ import policies.policy
 import critic.temporal_difference
 import data
 import torch_util
+import visualization
 from scripts.tabular.sagil import train_supervised
 
 
 class Retrace(critic.temporal_difference.ValueTemporalDifferenceBase):
     def __init__(self, model: torch.nn.Module, sample_policy: policies.policy.PolicyModel,
                  current_policy: policies.policy.PolicyModel,
-                 lambda_decay: float, *args, use_subsequences: bool = True, **kwargs):
+                 lambda_decay: float, *args, use_subsequences: bool = True,
+                 state_distribution: torch.nn.Module = None, **kwargs):
         super().__init__(model, 1, *args, **kwargs)
         self._lambda_decay = lambda_decay
         self._sample_policy = sample_policy
         self._current_policy = current_policy
         self._use_subsequences = use_subsequences
+        self._state_distribution = state_distribution
 
     def _update(self, batch: data.Batch[data.TensorRLTransitionSequence]) -> torch.autograd.Variable:
         td_loss = []
@@ -33,6 +36,11 @@ class Retrace(critic.temporal_difference.ValueTemporalDifferenceBase):
             log_iw = torch.max(zero, log_iw)
 
             iws = torch.exp(torch_util.rcumsum(log_iw))
+
+            ess = ((iws.sum()**2)/(iws**2).sum()).data
+            if self._current_policy.is_cuda:
+                ess = ess.cpu()
+            visualization.global_summary_writer.add_scalar("Retrace ESS", ess.numpy())
             values = self._online_network(states).squeeze()
             # values[-1] = values[-1] * (1 - is_terminal)
             discount_weights = torch.pow(batch.discount_factor, torch.arange(0, sequence.rewards.size(0)))
@@ -42,7 +50,11 @@ class Retrace(critic.temporal_difference.ValueTemporalDifferenceBase):
                 combined_weights = combined_weights.cuda()
             td_error = reward + batch.discount_factor * values[1:] - values[:-1] - is_terminal * batch.discount_factor * values[-1]
             cumulative_td_error = torch_util.rcumsum(td_error * iws * combined_weights)/combined_weights
-            td_loss.append(((cumulative_td_error + values[:-1]).detach() - values[:-1])**2)
+            if self._state_distribution is not None:
+                state_iws = self._state_distribution.state_weights(batch)
+                td_loss.append(state_iws * ((cumulative_td_error + values[:-1]).detach() - values[:-1])**2)
+            else:
+                td_loss.append(((cumulative_td_error + values[:-1]).detach() - values[:-1])**2)
             '''
             for t in range(len(sequence.rewards) - 1, -1, -1):
                 if t == len(sequence.rewards) - 1:

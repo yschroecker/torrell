@@ -1,0 +1,7 @@
+tmp_bu/*
+runs/*
+scripts/runs/*
+scripts/**/__pychache__/*
+scripts/**/runs/*
+.idea/*
+

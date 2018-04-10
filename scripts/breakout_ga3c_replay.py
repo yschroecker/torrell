@@ -12,7 +12,7 @@ import trainers.synchronous
 import trainers.experience_replay
 import policies.softmax
 import visualization
-import optimization_strategies.simultaneous_gradient_descent
+import core_algorithms.actor_critic
 
 
 def _run():
@@ -41,7 +41,7 @@ def _run():
     pg = actor.likelihood_ratio_gradient.LikelihoodRatioGradient(softmax_policy, entropy_regularization=0.01)
     tdv = critic.retrace.Retrace(networks.simple_shared.VNetwork(shared_network), memory_policy, softmax_policy, 1, 1)
     memory_optimizer = torch.optim.RMSprop(memory_policy_network.parameters(), lr=7e-4, eps=0.1)
-    memory = trainers.experience_replay.FIFOReplayMemory(num_states, num_actions, np.int32, 1000000)
+    memory = trainers.experience_replay.FIFOReplayMemory(num_states, num_actions, np.int32, 100000)
     memory = trainers.experience_replay.MemoryWithPolicy(memory, memory_policy, memory_optimizer)
 
     num_samples = 30000000
@@ -57,7 +57,7 @@ def _run():
         idx = np.random.choice(16)
         visualization.global_summary_writer.add_image(f'state_{idx}', envs[idx].ale.getScreenRGB(), iteration)
 
-    strategy = optimization_strategies.simultaneous_gradient_descent.SimultaneousGradientDescent(
+    strategy = core_algorithms.actor_critic.ActorCritic(
         optimizer, pg, tdv, critic.advantages.TDErrorAdvantageProvider(tdv), gradient_clipping=1,
     )
 
@@ -69,7 +69,7 @@ def _run():
         reward_clipping=[-1, 1],
         discount_factor=0.99,
         reward_log_smoothing=0.1,
-        evaluation_frequency=1000,
+        evaluation_frequency=50,
         max_len=10000,
         hooks=[
             (100000, lambda iteration: torch.save(shared_network,

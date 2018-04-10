@@ -1,6 +1,5 @@
-from typing import Any, Type, Tuple, NamedTuple, Sequence, Callable, Generic, Optional
+from typing import Any, Type, Tuple, NamedTuple, Sequence, Callable, Generic
 import abc
-import time
 
 import torch.optim
 import torch.optim.lr_scheduler
@@ -9,8 +8,8 @@ import numpy as np
 
 from actor.actor_base import Actor
 from environments.environment import Environment, ActionT
-from critic.temporal_difference import TemporalDifferenceBase
-from optimization_strategies.optimization_strategy import OptimizationStrategy
+from critic.temporal_difference import TemporalDifferenceBase, Batch
+from core_algorithms.optimization_strategy import OptimizationStrategy
 from policies.policy import PolicyModel, Policy
 import visualization
 import data
@@ -28,8 +27,6 @@ class TrainerConfig(NamedTuple):
     max_len: int = -1
     evaluation_frequency: int = -1
     hooks: Sequence[Tuple[int, Callable[[int], None]]] = []
-    random_start_duration: int = 0
-    random_start_distribution: Callable[[], Any] = None
 
 
 class DiscreteTrainerBase(metaclass=abc.ABCMeta):
@@ -40,8 +37,6 @@ class DiscreteTrainerBase(metaclass=abc.ABCMeta):
         self.reward_ema = 0
         self.eval_score_ema = 0
         self.eval_reward_ema = 0
-        self.discount_factor = trainer_config.discount_factor
-        self._last_print = 0
         self._sample_count = 0
         self._hooks = trainer_config.hooks
 
@@ -49,23 +44,9 @@ class DiscreteTrainerBase(metaclass=abc.ABCMeta):
         for hook_iter, hook in self._hooks:
             if iteration % hook_iter == 0:
                 hook(iteration)
-        self._sample_count += sum(sequence.rewards.shape[0] for sequence in batch.sequences)
+        # self._sample_count += batch.size()
         self._optimization_strategy.iterate(iteration, batch)
         return f"r: {self.reward_ema}/{self.eval_reward_ema}, iteration: {iteration}, samples: {self._sample_count}"
-
-    def train(self, num_iterations: int):
-        trange = tqdm.trange(num_iterations)
-        for iteration in trange:
-            samples = self.collect_transitions(iteration)
-            if samples is not None:
-                trange.set_description(self.do_train(iteration, samples))
-                if time.time() - self._last_print > 60:
-                    print(f"iteration {iteration}, eval_score {self.eval_score_ema}")
-                    self._last_print = time.time()
-
-    @abc.abstractmethod
-    def collect_transitions(self, iteration: int) -> Optional[data.Batch[data.RLTransitionSequence]]:
-        pass
 
 
 class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
@@ -76,9 +57,6 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         self._discount_factor = trainer_config.discount_factor
         self._evaluation_frequency = trainer_config.evaluation_frequency
         self._action_type = trainer_config.policy_model.action_type
-        self._random_start_duration = trainer_config.random_start_duration
-        self._random_start_distribution = trainer_config.random_start_distribution
-        assert self._random_start_distribution is not None or self._random_start_duration == 0
 
         self._end_evaluation()
 
@@ -87,47 +65,35 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
         self._t = 0
         self._episode_reward = 0.
         self._episode_score = 0.
-        self._next_state = self._reset_env()
-        # self._next_action = self._choose_action(self._next_state, 0)
+        self._next_state = env.reset()
+        self._next_action = self._choose_action(self._next_state, 0)
         self._episode = 0
-
-        self.last_eval_score = 0
-        self.num_samples = 0
 
     def _end_evaluation(self):
         self._evaluation_countdown = self._evaluation_frequency
         self._evaluation_mode = False
-        self._env.evaluation_mode = True
+        self._env.treat_life_lost_as_terminal = True
 
     def _start_evaluation(self):
         self._evaluation_mode = True
-        self._env.evaluation_mode = False
+        self._env.treat_life_lost_as_terminal = False  # TODO: refactor!!!
 
     def _choose_action(self, state: np.ndarray, t: int) -> ActionT:
         return self._policy.sample(state, t, not self._evaluation_mode)
 
-    def _reset_env(self) -> np.ndarray:
-        state = self._env.reset()
-        for _ in range(self._random_start_duration):
-            state, _, is_terminal, _ = self._env.step(self._random_start_distribution())
-            if is_terminal:
-                return self._reset_env()  # can overflow under unreasonable configuration
-        return state
-
     def collect_sequence(self, num_steps: int) -> data.RLTransitionSequence:
-        states = [self._next_state]
-        next_action = self._choose_action(self._next_state, 0)
-        actions = [next_action]
+        states = []
+        actions = []
         rewards = []
-        is_terminal = False
+        terminal_states = []
+        self._next_action = self._choose_action(self._next_state, 0)
         step = 0
+        is_terminal = False
         while step < num_steps and not is_terminal:
-            self._evaluation_countdown -= 1
             state = self._next_state
-            action = next_action
+            action = self._next_action
             self._next_state, reward, is_terminal, _ = self._env.step(action)
             if not self._evaluation_mode:
-                self.num_samples += 1
                 # noinspection PyTypeChecker
                 reward = np.clip(reward, self._reward_clipping[0], self._reward_clipping[1])
 
@@ -135,16 +101,16 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
             self._episode_score += reward
             self._t += 1
 
+            self._next_action = self._choose_action(self._next_state, self._t)
             if not self._evaluation_mode:
+                states.append(state)
+                actions.append(action)
                 rewards.append(reward)
+                terminal_states.append(is_terminal)
                 step += 1
 
-            if not self._evaluation_mode:
-                states.append(self._next_state)
-                actions.append(next_action)
-
             if is_terminal or self._t >= self._maxlen > 0:
-                is_terminal = True
+                self._evaluation_countdown -= 1
                 summary_target = 'evaluation reward' if self._evaluation_mode else 'episode reward'
                 visualization.global_summary_writer.add_scalar(summary_target, self._episode_reward, self._episode)
                 summary_target = 'evaluation score' if self._evaluation_mode else 'episode score'
@@ -154,41 +120,39 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
                         self._reward_log_smoothing * self._episode_reward
                     self.eval_score_ema = (1 - self._reward_log_smoothing) * self._episode_score + \
                         self._reward_log_smoothing * self._episode_score
-                    self.last_eval_score = self._episode_score
 
                 else:
                     self.reward_ema = (1 - self._reward_log_smoothing) * self.reward_ema + \
                                       self._reward_log_smoothing * self._episode_reward
+                states.append(self._next_state)
+                actions.append(self._next_action)
+                self._next_state = self._env.reset()
+                self._next_action = self._choose_action(self._next_state, self._t)
                 self._episode_reward = 0.
                 self._episode_score = 0.
                 self._episode += 1
-                self._next_state = self._reset_env()
                 if self._evaluation_mode:
                     self._end_evaluation()
-                    states = [self._next_state]
-                    actions = [next_action]
-                    rewards = []
                     is_terminal = False
-                    step = 0
                 elif self._evaluation_countdown <= 0 < self._evaluation_frequency:
                     # noinspection PyAttributeOutsideInit
                     self._start_evaluation()
                 self._t = 0
-            next_action = self._choose_action(self._next_state, self._t)
+        if len(states) == len(rewards):
+            states.append(self._next_state)
+            actions.append(self._next_action)
 
-        assert len(rewards) > 0
-        assert len(states) == len(rewards) + 1
         return data.RLTransitionSequence(
-            rewards=np.array(rewards, dtype=np.float32),
+            rewards=np.array(rewards, np.float32),
             transition_sequence=data.TransitionSequence(
                 states=[np.array(state, dtype=np.float32) for state in states],
-                actions=np.array(actions, dtype=self._action_type),
-                is_terminal=np.array([float(is_terminal)], dtype=np.float32)
+                actions=np.array(actions, self._action_type),
+                is_terminal=np.array([is_terminal], dtype=np.float32)
             )
         )
 
-    def _collect_transitions(self, batch_size: int, sequence_length: int = 1) -> data.Batch[data.RLTransitionSequence]:
-        return data.Batch([self.collect_sequence(sequence_length) for _ in range(batch_size)])
+    def _collect_transitions(self, batch_size: int, sequence_length: int = 1):
+        return data.Batch([self.collect_sequence(sequence_length) for _ in range(batch_size)], self._discount_factor)
 
 
 class DiscreteOnlineTrainer(DiscreteTrainer):
@@ -196,8 +160,15 @@ class DiscreteOnlineTrainer(DiscreteTrainer):
         self._batch_size = batch_size
         super().__init__(env, trainer_config)
 
-    def collect_transitions(self, _) -> data.Batch[data.RLTransitionSequence]:
-        return self._collect_transitions(self._batch_size, 1)
+    def collect_transitions(self, batch_size):
+        return self._collect_transitions(batch_size, 1)
+
+    def train(self, num_iterations: int):
+        trange = tqdm.trange(num_iterations)
+        for iteration in trange:
+            batch = self.collect_transitions(self._batch_size)
+            if batch is not None:
+                trange.set_description(self.do_train(iteration, batch))
 
 
 class DiscreteNstepTrainer(DiscreteTrainer):
@@ -205,5 +176,16 @@ class DiscreteNstepTrainer(DiscreteTrainer):
         self._batch_size = batch_size
         super().__init__(env, trainer_config)
 
-    def collect_transitions(self, _) -> data.Batch[data.RLTransitionSequence]:
-        return self._collect_transitions(1, self._batch_size)
+    def collect_transitions(self, num_transitions):
+        return self._collect_transitions(1, num_transitions)
+
+    def get_batch(self, num_transitions=-1) -> data.Batch[data.RLTransitionSequence]:
+        if num_transitions == -1:
+            num_transitions = self._batch_size
+        return self.collect_transitions(num_transitions)
+
+    def train(self, num_iterations: int):
+        trange = tqdm.trange(num_iterations)
+        for iteration in trange:
+            batch = self.get_batch()
+            trange.set_description(self.do_train(iteration, batch))

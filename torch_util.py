@@ -1,5 +1,7 @@
 from typing import Any, TypeVar, Union, Tuple
 
+import functools
+
 import numpy as np
 import torch
 
@@ -31,8 +33,24 @@ def module_is_cuda(target_module: torch.nn.Module) -> bool:
     return next(target_module.parameters()).is_cuda
 
 
-def rcumsum(tensor: TensorT) -> TensorT:
-    reverse_indices = torch.arange(tensor.size(0) - 1, -1, -1).long()
-    if tensor.is_cuda:
+@functools.lru_cache()
+def _reverse_indices(tensor_size, cuda):
+    reverse_indices = torch.arange(tensor_size - 1, -1, -1).long()
+    if cuda:
         reverse_indices = reverse_indices.cuda()
+    return reverse_indices
+
+
+def rcumsum(tensor: TensorT) -> TensorT:
+    reverse_indices = _reverse_indices(tensor.size(0), tensor.is_cuda)
     return tensor[reverse_indices].cumsum(dim=0)[reverse_indices]
+
+
+def exclude_index(tensor: TensorT, index: int) -> TensorT:
+    if index == 0:
+        return tensor[1:]
+    elif index == tensor.size(0) - 1:
+        return tensor[:-1]
+    else:
+        return torch.cat([tensor[:index], tensor[index+1:]], dim=0)
+

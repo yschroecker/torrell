@@ -10,16 +10,18 @@ import policies.policy
 
 class SphericalGaussianPolicyModel(policies.policy.PolicyModel[np.ndarray]):
     def __init__(self, action_dim: int, network: torch.nn.Module, fixed_noise: Optional[np.ndarray],
-                 min_stddev: float=0, noise_sample_rate: int=1):
+                 min_stddev: float=0, noise_sample_rate: int=1, eval_use_mean: bool=False):
         self._network = network
         if fixed_noise is None:
             self._fixed_noise = None
         else:
-            self._fixed_noise = torch_util.load_input(self.is_cuda, fixed_noise)
+            self._fixed_noise = torch.autograd.Variable(torch_util.load_input(self.is_cuda, fixed_noise),
+                                                        requires_grad=False)
         self._action_dim = action_dim
         self.min_stddev = min_stddev
         self._noise_sample_rate = noise_sample_rate
         self._noise = None
+        self.eval_use_mean = eval_use_mean
 
     def log_probability(self, states: torch.autograd.Variable, actions: torch.autograd.Variable) -> \
             torch.autograd.Variable:
@@ -34,9 +36,8 @@ class SphericalGaussianPolicyModel(policies.policy.PolicyModel[np.ndarray]):
         return self._network.parameters()
 
     def entropy(self, states: torch.autograd.Variable) -> torch.autograd.Variable:
-        out = self._network(states)
-        logstddevs = out[:, self._action_dim:]
-        return (0.5 + np.log(np.sqrt(2*np.pi)).astype(np.float32))*self._action_dim + logstddevs.sum(dim=1)
+        mean, logstddevs = self.statistics(states)
+        return np.asscalar(0.5 + np.log(np.sqrt(2*np.pi)).astype(np.float32))*self._action_dim + logstddevs.sum(dim=1)
 
     @property
     def _module(self) -> torch.nn.Module:
@@ -46,7 +47,7 @@ class SphericalGaussianPolicyModel(policies.policy.PolicyModel[np.ndarray]):
         out = self._network(states)
         if self._fixed_noise is not None:
             means = out
-            logstddevs = self._fixed_noise.expand(out.size(0), -1)
+            logstddevs = self._fixed_noise.expand_as(means)
         else:
             means = out[:, :self._action_dim]
             logstddevs = out[:, self._action_dim:]
@@ -65,7 +66,7 @@ class SphericalGaussianPolicy(policies.policy.Policy[np.ndarray]):
     def _model(self) -> SphericalGaussianPolicyModel:
         return self.__model
 
-    def _sample(self, state: torch.autograd.Variable, t: int, training: bool):
+    def sample_from_var(self, state: torch.autograd.Variable, t: int, training: bool):
         mean_var, logstddev_var = self._model.statistics(state)
         mean_tensor = mean_var.data
         logstddev_tensor = logstddev_var.data
@@ -73,9 +74,13 @@ class SphericalGaussianPolicy(policies.policy.Policy[np.ndarray]):
             mean_tensor = mean_tensor.cpu()
             logstddev_tensor = logstddev_tensor.cpu()
         mean = mean_tensor.numpy().squeeze()
-        logstddev = logstddev_tensor.numpy().squeeze()
+        if not training and self.__model.eval_use_mean:
+            action = mean
+        else:
+            logstddev = logstddev_tensor.numpy().squeeze()
 
-        stddev = np.exp(logstddev) + self._model.min_stddev
-        action = np.random.normal(mean, stddev)
+            stddev = np.exp(logstddev) + self._model.min_stddev
+            action = np.random.normal(mean, stddev)
 
         return action.astype(np.float32)
+

@@ -5,66 +5,58 @@ import torch.nn.functional as f
 
 import torch_util
 import environments.cartpole
-import algorithms.discrete_a2c
-
-
-class SharedNetwork(torch.nn.Module, metaclass=abc.ABCMeta):
-    def __init__(self, num_states: int, num_actions: int):
-        super().__init__()
-        hdim = 200
-        self._h1 = torch.nn.Linear(num_states, hdim)
-
-        self._v_out = torch.nn.Linear(hdim, 1)
-        self._pi_out = torch.nn.Linear(hdim, num_actions)
-
-    def shared(self, states: torch_util.FloatTensor):
-        h1 = f.relu(self._h1(states))
-        return h1
-
-    def v(self, states: torch_util.FloatTensor):
-        return self._v_out(self.shared(states))
-
-    def pi(self, states: torch_util.FloatTensor):
-        return self._pi_out(self.shared(states))
+import policies.softmax
+import algorithms.a2c
 
 
 class VNetwork(torch.nn.Module):
-    def __init__(self, shared: torch.nn.Module):
+    def __init__(self, num_states: int):
         super().__init__()
-        self._shared = shared
+        hdim = 80
+        self._h1 = torch.nn.Linear(num_states, hdim)
 
-    def forward(self, states: torch_util.FloatTensor):
-        return self._shared.v(states)
+        self._v_out = torch.nn.Linear(hdim, 1)
+
+    def forward(self, states: torch.autograd.Variable):
+        h1 = f.relu(self._h1(states))
+        return self._v_out(h1)
 
 
 class PolicyNetwork(torch.nn.Module):
-    def __init__(self, shared: torch.nn.Module):
+    def __init__(self, num_states: int, num_actions: int):
         super().__init__()
-        self._shared = shared
+        hdim = 80
+        self._h1 = torch.nn.Linear(num_states, hdim)
 
-    def forward(self, states: torch_util.FloatTensor):
-        return self._shared.pi(states)
+        self._pi_out = torch.nn.Linear(hdim, num_actions)
+
+    def forward(self, states: torch.autograd.Variable):
+        h1 = f.relu(self._h1(states))
+        return self._pi_out(h1)
 
 
 def _run():
-    env = environments.cartpole.Cartpole()
-    num_states = env.observation_space.shape[0]
-    num_actions = env.action_space.n
-    shared_network = SharedNetwork(num_states, num_actions)
-    v_network = VNetwork(shared_network)
-    policy_network = PolicyNetwork(shared_network)
-    algorithms.discrete_a2c.train(
-        num_iterations=10000,
-        env=env,
+    envs = [environments.cartpole.Cartpole()]
+    num_states = envs[0].observation_space.shape[0]
+    num_actions = envs[0].action_space.n
+    v_network = VNetwork(num_states)
+    policy_network = PolicyNetwork(num_states, num_actions)
+    policy_model = policies.softmax.SoftmaxPolicyModel(policy_network)
+    a2c = algorithms.a2c.A2C(
+        envs=envs,
         state_dim=num_states,
+        action_dim=num_actions,
         value_network=v_network,
-        policy_network=policy_network,
-        learning_rate=0.001,
-        discount_factor=0.99,
+        policy_model=policy_model,
+        policy_builder=policies.softmax.SoftmaxPolicy,
+        learning_rate=0.01,
+        discount_factor=0.9,
         batch_size=32,
         reward_log_smoothing=0.1,
         max_len=200
     )
+    for iteration in a2c.rl_eval_range(0, 100000, environments.cartpole.Cartpole(), 100):
+        a2c.iterate(iteration)
 
 
 if __name__ == '__main__':

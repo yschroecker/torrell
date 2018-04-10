@@ -38,7 +38,7 @@ def _run():
     state = env.reset()
     action = sample_sample_policy.sample(state, 0)
     optimizer = torch.optim.SGD(v_network.parameters(), 0.05)
-    for _ in tqdm.trange(10000):
+    for _ in tqdm.trange(20000):
         states = [state]
         actions = [action]
         discount_weights = []
@@ -64,6 +64,7 @@ def _run():
             )
         )
         batch = data.Batch([sequence], discount_factor=0.9)
+        batch = batch.to_tensor(False)
         loss = tdv.update_loss(batch)
         optimizer.zero_grad()
         loss.backward()

@@ -24,6 +24,13 @@ class TabularPolicy(PolicyBase):
             score += self.parameters[-1, :]
         return score
 
+    def sample(self, state: Sequence[int]) -> Sequence[int]:
+        probabilities = self.probabilities(state)
+        return [np.random.choice(self._num_actions, p=state_probabilities) for state_probabilities in probabilities]
+
+    def sample_one(self, state: int):
+        return self.sample([state])[0]
+
     def probabilities(self, state: Sequence[int]) -> np.ndarray:
         state = np.atleast_1d(state)
         exp_scores = np.exp(self.scores(state))

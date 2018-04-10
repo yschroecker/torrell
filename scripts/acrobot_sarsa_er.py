@@ -43,7 +43,7 @@ def _run():
         discount_factor=1,
         reward_log_smoothing=0.1
     )
-    trainer = trainers.experience_replay.MixedBatchExperienceReplay(env, config, 32000, 32, 32)
+    trainer = trainers.experience_replay.DiscreteExperienceReplay(env, config, 32000, 32, 32)
     trainer.train(100000)
 
 

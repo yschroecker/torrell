@@ -44,21 +44,30 @@ class SoftmaxPolicy(policies.policy.Policy):
     def __init__(self, policy_model: SoftmaxPolicyModel):
         self.__model = policy_model
 
-        self._plot_count = 0
-
     @property
     def _model(self) -> SoftmaxPolicyModel:
         return self.__model
 
-    def _sample(self, state_var: torch.autograd.Variable, _: int, training: bool=False) -> int:
+    def sample_from_var(self, state_var: torch.autograd.Variable, _: int, training: bool=True) -> int:
+        probabilities = self._probabilities(state_var)
+        visualization.global_summary_writer.add_scalar('max pi', np.max(probabilities, keepdims=True))
+        return np.random.choice(probabilities.shape[0], p=probabilities)
+
+    def _probabilities(self, state_var: torch.autograd.Variable) -> np.ndarray:
         probabilities_var = self._model.all_probabilities(state_var)
         probabilities = probabilities_var.data
         if self._model.is_cuda:
             probabilities = probabilities.cpu()
-        probabilities = probabilities[0].numpy()
-        if self._plot_count % 1000 == 0:
-            for i, p in enumerate(probabilities):
-                visualization.global_summary_writer.add_scalar(f"pi_{i}", np.array(p))
-        self._plot_count += 1
-        return np.random.choice(probabilities.shape[0], p=probabilities)
+        return probabilities[0].numpy()
+
+    def probabilities(self, state: np.ndarray) -> np.ndarray:
+        # TODO: refactor
+        state_tensor = torch.from_numpy(np.array([state])).type(
+            torch.cuda.FloatTensor if self._model.is_cuda else torch.FloatTensor
+        )
+        state_var = torch.autograd.Variable(state_tensor, volatile=True)
+        return self._probabilities(state_var)
+
+
+
 

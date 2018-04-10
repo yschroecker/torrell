@@ -22,10 +22,10 @@ class Tabular:
         return np.random.choice(self.num_states, p=self.initial_states)
 
     def transition(self, state: int, action: int) -> int:
-        return np.random.choice(self.num_states, p=self.transition_matrix[self._sa_index(state, action)])
+        return np.random.choice(self.num_states, p=self.transition_matrix[self.sa_index(state, action)])
 
     def reward(self, state: int, action: int, next_state: int) -> float:
-        return self._reward_matrix[self._sa_index(state, action), next_state]
+        return self._reward_matrix[self.sa_index(state, action), next_state]
 
     def is_terminal(self, state: int) -> bool:
         return self.terminal_states[state]
@@ -35,7 +35,7 @@ class Tabular:
         for state in range(self.num_states):
             if self.is_terminal(state):
                 for action in range(self.num_actions):
-                    sa = self._sa_index(state, action)
+                    sa = self.sa_index(state, action)
                     wrap_around_matrix[sa, :] = self.initial_states
         return wrap_around_matrix
 
@@ -43,7 +43,7 @@ class Tabular:
                                                transition_matrix: np.ndarray) -> np.ndarray:
         policy = np.zeros((self.num_states, self.num_states * self.num_actions))
         for state in range(self.num_states):
-            policy[state, self._sa_index(state, deterministic_policy[state])] = 1
+            policy[state, self.sa_index(state, deterministic_policy[state])] = 1
         return self.policy_transition_matrix(policy, transition_matrix)
 
     @functools.lru_cache()
@@ -58,7 +58,7 @@ class Tabular:
 
     @staticmethod
     def policy_transition_matrix(policy: np.ndarray, transition_matrix: np.ndarray) -> np.ndarray:
-        return np.dot(policy, transition_matrix)
+        return policy @ transition_matrix
 
     def stationary_state_distribution(self, policy: np.ndarray) -> np.ndarray:
         transition_matrix = self.policy_transition_matrix(policy, self._wrap_around_transition_matrix())
@@ -75,14 +75,13 @@ class Tabular:
 
     def reverse_transition_matrix(self, policy: np.ndarray, stationary_distribution: np.ndarray) -> np.ndarray:
         transition_matrix = self._wrap_around_transition_matrix()
-        reverse_transitions = np.zeros((self.num_states, self.num_states * self.num_actions))
-        for state in range(self.num_states):
-            for action in range(self.num_actions):
-                for next_state in range(self.num_states):
-                    sa = self._sa_index(state, action)
-                    reverse_transitions[next_state, sa] = transition_matrix[sa, next_state] * policy[state, sa] * \
-                        stationary_distribution[state] / stationary_distribution[next_state]
-        return reverse_transitions
+
+        return transition_matrix.T * \
+               (stationary_distribution @ policy)[np.newaxis, :] / stationary_distribution[:, np.newaxis]
+
+    def reverse_state_transition_matrix(self, policy: np.ndarray, stationary_distribution: np.ndarray) -> np.ndarray:
+        transition_matrix = policy @ self._wrap_around_transition_matrix()
+        return transition_matrix.T * stationary_distribution[np.newaxis, :] / stationary_distribution[:, np.newaxis]
 
     def log_stationary_derivative(self, policy: np.ndarray, log_policy_derivative: np.ndarray,
                                   stationary_distribution: np.ndarray) -> np.ndarray:
@@ -105,8 +104,11 @@ class Tabular:
         lsd -= np.sum(lsd * stationary_distribution[:, np.newaxis], axis=0, keepdims=True)
         return np.reshape(lsd, newshape=(lsd.shape[0],) + parameter_dims)
 
-    def _sa_index(self, state: int, action: int) -> int:
+    def sa_index(self, state: int, action: int) -> int:
         return self.num_actions * state + action  # don't change
+
+    def sa_from_index(self, index: int) -> Tuple[int, int]:
+        return index // self.num_actions, index % self.num_actions
 
 
 def probabilistic_policy_selector(policy: np.ndarray) -> np.ndarray:

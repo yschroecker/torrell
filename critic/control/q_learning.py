@@ -3,14 +3,15 @@ import abc
 
 import torch
 
-import critic.temporal_difference
 import data
+import critic.temporal_difference
 import visualization
 
 
-class DiscreteQLearningBase(critic.temporal_difference.ValueTemporalDifferenceBase, metaclass=abc.ABCMeta):
-    def __init__(self, model: torch.nn.Module, target_update_rate: int, grad_report_rate: int=1000):
-        super().__init__(model, target_update_rate, grad_report_rate)
+class DiscreteQLearningBase(critic.temporal_difference.TemporalDifferenceBase, metaclass=abc.ABCMeta):
+    def __init__(self, model: torch.nn.Module, target_update_rate: int,
+                 gradient_clip: Optional[float]=None, grad_report_rate: int=1000):
+        super().__init__(model, target_update_rate, gradient_clip, grad_report_rate)
         self._loss_fn = torch.nn.MSELoss()
 
     @abc.abstractmethod

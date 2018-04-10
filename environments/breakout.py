@@ -31,8 +31,8 @@ class Breakout(environments.environment.Environment[int]):
 
     def reset(self) -> np.ndarray:
         self._env.reset()
-        # for _ in range(0):
-            # self._env.step(np.random.choice(self.num_actions))
+        for _ in range(50):
+            self._env.step(np.random.choice(self.num_actions))
         assert self.history_length > 0
         for _ in range(self.history_length):
             state = self.step(np.random.choice(self.num_actions))[0]
