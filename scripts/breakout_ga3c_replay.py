@@ -55,7 +55,7 @@ def _run():
     # )
     def image_summary(iteration):
         idx = np.random.choice(16)
-        visualization.global_summary_writer.add_image(f'state_{idx}', envs[idx].ale.getScreenRGB(), iteration)
+        visualization.reporting.global_summary_writer.add_image(f'state_{idx}', envs[idx].ale.getScreenRGB(), iteration)
 
     strategy = core_algorithms.actor_critic.ActorCritic(
         optimizer, pg, tdv, critic.advantages.TDErrorAdvantageProvider(tdv), gradient_clipping=1,

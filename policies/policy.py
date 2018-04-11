@@ -36,11 +36,11 @@ class PolicyModel(Generic[ActionT], metaclass=abc.ABCMeta):
 
     def visualize(self, counter):
         for name, parameter in self._module.named_parameters():
-            visualization.global_summary_writer.add_histogram(
+            visualization.reporting.global_summary_writer.add_histogram(
                 f'pi ({name})', parameter.data.cpu().numpy(), counter
             )
             if parameter.grad is not None:
-                visualization.global_summary_writer.add_histogram(
+                visualization.reporting.global_summary_writer.add_histogram(
                     f'pi {name}_grad', parameter.grad.data.cpu().numpy(), counter
                 )
 

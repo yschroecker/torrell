@@ -133,12 +133,12 @@ def rl_eval_range(start: int, end: int, trainers: Sequence[Trainer], tester: Opt
             sample_count = sum(trainer.sample_count for trainer in trainers)
             if tester is not None and iteration % eval_frequency == eval_frequency - 1:
                 tester.collect_sequence()
-                visualization.global_summary_writer.add_scalar('evaluation reward', tester.reward_ema, sample_count)
-                visualization.global_summary_writer.add_scalar('evaluation score', tester.score_ema, sample_count)
+                visualization.reporting.global_summary_writer.add_scalar('evaluation reward', tester.reward_ema, sample_count)
+                visualization.reporting.global_summary_writer.add_scalar('evaluation score', tester.score_ema, sample_count)
             reward_emas = [trainer.reward_ema for trainer in trainers]
-            visualization.global_summary_writer.add_scalar('training reward', np.mean(reward_emas), sample_count)
+            visualization.reporting.global_summary_writer.add_scalar('training reward', np.mean(reward_emas), sample_count)
             score_emas = [trainer.score_ema for trainer in trainers]
-            visualization.global_summary_writer.add_scalar('training score', np.mean(score_emas), sample_count)
+            visualization.reporting.global_summary_writer.add_scalar('training score', np.mean(score_emas), sample_count)
             pbar.update(1)
             test_score = '-' if tester is None else tester.score_ema
             pbar.set_description(f"r: {np.mean(score_emas)}/{test_score}, "

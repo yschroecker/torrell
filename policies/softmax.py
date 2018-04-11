@@ -50,7 +50,7 @@ class SoftmaxPolicy(policies.policy.Policy):
 
     def sample_from_var(self, state_var: torch.autograd.Variable, _: int, training: bool=True) -> int:
         probabilities = self._probabilities(state_var)
-        visualization.global_summary_writer.add_scalar('max pi', np.max(probabilities, keepdims=True))
+        visualization.reporting.global_summary_writer.add_scalar('max pi', np.max(probabilities, keepdims=True))
         return np.random.choice(probabilities.shape[0], p=probabilities)
 
     def _probabilities(self, state_var: torch.autograd.Variable) -> np.ndarray:

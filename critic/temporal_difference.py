@@ -67,17 +67,17 @@ class TemporalDifferenceBase(metaclass=abc.ABCMeta):
 
     def update_loss(self, batch: data.Batch[data.TensorRLTransitionSequence]) -> torch.autograd.Variable:
         loss = self._update(batch)
-        visualization.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
+        visualization.reporting.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
         if self._update_counter % self._grad_report_rate == 0:
             for name, parameter in self._online_network.named_parameters():
                 if parameter.grad is not None:
-                    visualization.global_summary_writer.add_histogram(
+                    visualization.reporting.global_summary_writer.add_histogram(
                         f'{name} ({self.name})', parameter.data.cpu().numpy(), self._update_counter
                     )
-                    visualization.global_summary_writer.add_histogram(
+                    visualization.reporting.global_summary_writer.add_histogram(
                         f'grad {name} ({self.name})', parameter.grad.data.cpu().numpy(), self._update_counter
                     )
-        visualization.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
+        visualization.reporting.global_summary_writer.add_scalar(f'TD/TD loss ({self.name})', loss.data[0], self._update_counter)
         '''
         if self._gradient_clip is not None:
             for parameter in self._online_network.parameters():

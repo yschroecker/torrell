@@ -56,7 +56,7 @@ def _run():
         if iteration > 0:
             scipy.misc.imsave(f"breakout_images_preprocessed/{iteration}.png", envs[idx].state[-1])
         image = envs[idx].ale.getScreenRGB()
-        visualization.global_summary_writer.add_image(f'state_{idx}', image, iteration)
+        visualization.reporting.global_summary_writer.add_image(f'state_{idx}', image, iteration)
 
     strategy = core_algorithms.actor_critic.ActorCritic(
         optimizer, pg, tdv, critic.advantages.TDErrorAdvantageProvider(tdv), gradient_clipping=1,

@@ -68,7 +68,7 @@ class EpsilonGreedy(policies.policy.Policy[int]):
 
     def sample_from_var(self, state_var: torch.autograd.Variable, _: Any, training: bool=True) -> int:
         if training:
-            visualization.global_summary_writer.add_scalar(f'epsilon', self._epsilon)
+            visualization.reporting.global_summary_writer.add_scalar(f'epsilon', self._epsilon)
             self._epsilon = max(self._epsilon - self._decay_delta, self._final_epsilon)
 
         action_probabilities = self.probabilities(state_var, training)

@@ -112,9 +112,9 @@ class DiscreteTrainer(DiscreteTrainerBase, Generic[ActionT]):
             if is_terminal or self._t >= self._maxlen > 0:
                 self._evaluation_countdown -= 1
                 summary_target = 'evaluation reward' if self._evaluation_mode else 'episode reward'
-                visualization.global_summary_writer.add_scalar(summary_target, self._episode_reward, self._episode)
+                visualization.reporting.global_summary_writer.add_scalar(summary_target, self._episode_reward, self._episode)
                 summary_target = 'evaluation score' if self._evaluation_mode else 'episode score'
-                visualization.global_summary_writer.add_scalar(summary_target, self._episode_score, self._episode)
+                visualization.reporting.global_summary_writer.add_scalar(summary_target, self._episode_score, self._episode)
                 if self._evaluation_mode:
                     self.eval_reward_ema = (1 - self._reward_log_smoothing) * self.eval_reward_ema + \
                         self._reward_log_smoothing * self._episode_reward

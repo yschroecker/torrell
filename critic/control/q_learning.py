@@ -31,10 +31,10 @@ class DiscreteQLearningBase(critic.temporal_difference.TemporalDifferenceBase, m
         values_o = q_values_o.gather(dim=1, index=actions.unsqueeze(1))
 
         target_values = self._target_values(states, actions, intermediate_returns, bootstrap_weights, bootstrap_states)
-        visualization.global_summary_writer.add_scalar(
+        visualization.reporting.global_summary_writer.add_scalar(
             f'TD/online_values ({self.name})', values_o.mean().data[0], self._update_counter
         )
-        visualization.global_summary_writer.add_scalar(
+        visualization.reporting.global_summary_writer.add_scalar(
             f'TD/target_values ({self.name})', target_values.mean().data[0], self._update_counter
         )
         target_values.detach_()

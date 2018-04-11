@@ -19,7 +19,7 @@ class ValueTD(critic.temporal_difference.ValueTemporalDifferenceBase):
         next_values_t = self._target_network(bootstrap_states).squeeze()
 
         target_values = intermediate_returns + bootstrap_weights * next_values_t
-        visualization.global_summary_writer.add_scalar(
+        visualization.reporting.global_summary_writer.add_scalar(
             f'TD/target_values ({self.name})', target_values.mean().data[0], self._update_counter
         )
         target_values.volatile = False
@@ -51,7 +51,7 @@ class QValueTD(critic.temporal_difference.TemporalDifferenceBase):
         next_values_t = next_q_values_t.gather(dim=1, index=bootstrap_actions.unsqueeze(1)).squeeze()
 
         target_values = intermediate_returns + bootstrap_weights * next_values_t
-        visualization.global_summary_writer.add_scalar(
+        visualization.reporting.global_summary_writer.add_scalar(
             f'TD/target_values ({self.name})', target_values.mean().data[0], self._update_counter
         )
         target_values.volatile = False

@@ -35,7 +35,7 @@ class GradientDescentStrategy(OptimizationStrategy, metaclass=abc.ABCMeta):
             for parameter in parameters:
                 torch.nn.utils.clip_grad_norm(parameter, self._gradient_clipping, self._clip_norm)
 
-        visualization.global_summary_writer.add_scalar('LR', self._optimizer.param_groups[0]['lr'], iteration)
+        visualization.reporting.global_summary_writer.add_scalar('LR', self._optimizer.param_groups[0]['lr'], iteration)
 
         self._optimizer.step()
 

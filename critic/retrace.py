@@ -40,7 +40,7 @@ class Retrace(critic.temporal_difference.ValueTemporalDifferenceBase):
             ess = ((iws.sum()**2)/(iws**2).sum()).data
             if self._current_policy.is_cuda:
                 ess = ess.cpu()
-            visualization.global_summary_writer.add_scalar("Retrace ESS", ess.numpy())
+            visualization.reporting.global_summary_writer.add_scalar("Retrace ESS", ess.numpy())
             values = self._online_network(states).squeeze()
             # values[-1] = values[-1] * (1 - is_terminal)
             discount_weights = torch.pow(batch.discount_factor, torch.arange(0, sequence.rewards.size(0)))
