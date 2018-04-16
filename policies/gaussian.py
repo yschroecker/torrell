@@ -14,9 +14,12 @@ class SphericalGaussianPolicyModel(policies.policy.PolicyModel[np.ndarray]):
         self._network = network
         if fixed_noise is None:
             self._fixed_noise = None
+        elif type(fixed_noise) is float or type(fixed_noise) is int:
+            self._fixed_noise = torch.autograd.Variable(torch.ones(action_dim) * fixed_noise)
+            if self.is_cuda:
+                self._fixed_noise = self._fixed_noise.cuda()
         else:
-            self._fixed_noise = torch.autograd.Variable(torch_util.load_input(self.is_cuda, fixed_noise),
-                                                        requires_grad=False)
+            self._fixed_noise = torch.autograd.Variable(torch_util.load_input(self.is_cuda, fixed_noise))
         self._action_dim = action_dim
         self.min_stddev = min_stddev
         self._noise_sample_rate = noise_sample_rate

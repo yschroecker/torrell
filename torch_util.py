@@ -54,3 +54,9 @@ def exclude_index(tensor: TensorT, index: int) -> TensorT:
     else:
         return torch.cat([tensor[:index], tensor[index+1:]], dim=0)
 
+
+def repeat_tile(tensor: TensorT, repeats: int) -> TensorT:
+    # assumes 2 dim, tiling dim=1 for now
+    return tensor[None, :, :].expand(repeats, *tensor.size()).permute(1, 2, 0).contiguous().view(tensor.size(0), -1)
+
+
